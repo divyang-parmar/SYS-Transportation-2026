@@ -35,9 +35,10 @@ class Settings(BaseSettings):
     twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
     twilio_from_number: str = Field(default="", alias="TWILIO_FROM_NUMBER")
 
-    # Email — Resend HTTP API (replaces SMTP, which is blocked on Render free tier)
-    resend_api_key: str = Field(default="", alias="RESEND_API_KEY")
-    resend_from: str = Field(default="onboarding@resend.dev", alias="RESEND_FROM")
+    # Email — SendGrid REST API (HTTPS/443, works on Render free tier)
+    sendgrid_api_key: str = Field(default="", alias="SENDGRID_API_KEY")
+    sendgrid_from_email: str = Field(default="", alias="SENDGRID_FROM_EMAIL")
+    sendgrid_from_name: str = Field(default="Airport Transportation App", alias="SENDGRID_FROM_NAME")
 
     # Email / SMTP Configuration (kept for local dev fallback)
     smtp_host: str = Field(default="smtp.gmail.com", alias="SMTP_HOST")

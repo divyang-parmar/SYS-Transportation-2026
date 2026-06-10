@@ -118,22 +118,26 @@ def _build_html(name: str, email: str, role: str, body_text: str) -> str:
 </html>"""
 
 
-async def _send_via_resend(name: str, to_email: str, role: str, subject: str, body_text: str) -> bool:
+async def _send_via_sendgrid(name: str, to_email: str, role: str, subject: str, body_text: str) -> bool:
+    payload = {
+        "personalizations": [{"to": [{"email": to_email, "name": name}]}],
+        "from": {"email": settings.sendgrid_from_email, "name": settings.sendgrid_from_name},
+        "subject": subject,
+        "content": [
+            {"type": "text/plain", "value": body_text},
+            {"type": "text/html",  "value": _build_html(name, to_email, role, body_text)},
+        ],
+    }
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.post(
-            "https://api.resend.com/emails",
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json={
-                "from": settings.resend_from,
-                "to": [to_email],
-                "subject": subject,
-                "html": _build_html(name, to_email, role, body_text),
-            },
+            "https://api.sendgrid.com/v3/mail/send",
+            headers={"Authorization": f"Bearer {settings.sendgrid_api_key}"},
+            json=payload,
         )
-    if resp.status_code in (200, 201):
-        logger.info("Invite email sent via Resend to %s (%s)", to_email, role)
+    if resp.status_code == 202:
+        logger.info("Invite email sent via SendGrid to %s (%s)", to_email, role)
         return True
-    logger.error("Resend error %s for %s: %s", resp.status_code, to_email, resp.text)
+    logger.error("SendGrid error %s for %s: %s", resp.status_code, to_email, resp.text)
     return False
 
 
@@ -155,12 +159,12 @@ def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text:
 
 
 async def send_invite_email(name: str, email: str, role: str, subject: str, body_text: str) -> bool:
-    # Prefer Resend (HTTP-based, works on Render free tier)
-    if settings.resend_api_key:
+    # Prefer SendGrid (HTTPS/443, works on Render free tier)
+    if settings.sendgrid_api_key and settings.sendgrid_from_email:
         try:
-            return await _send_via_resend(name, email, role, subject, body_text)
+            return await _send_via_sendgrid(name, email, role, subject, body_text)
         except Exception as exc:
-            logger.error("Failed to send invite email via Resend to %s: %s", email, exc)
+            logger.error("Failed to send invite email via SendGrid to %s: %s", email, exc)
             return False
 
     # Fall back to SMTP (works locally, blocked on Render free tier)
