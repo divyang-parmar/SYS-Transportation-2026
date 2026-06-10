@@ -1,8 +1,9 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { MapPin, Phone, Users, Clock, Plane, Accessibility, CheckCircle2, Circle, LogOut, Loader2, Mail } from "lucide-react";
 
-const ASSIGNMENTS_API = "http://localhost:8000/assignments";
-const SARTHI_API      = "http://localhost:8000/sarthi";
+import { API_BASE } from "../lib/api";
+const ASSIGNMENTS_API = `${API_BASE}/assignments`;
+const SARTHI_API      = `${API_BASE}/sarthi`;
 
 interface Props {
   onBack: () => void;

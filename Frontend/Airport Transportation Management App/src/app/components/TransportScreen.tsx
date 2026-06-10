@@ -18,10 +18,11 @@ import { BhaktosDashboard } from "./BhaktosDashboard";
 import { type FlightGroup, type Passenger } from "../data/mockData";
 import { type Sarthi as SarthiOption } from "./FlightGroupView";
 
-const VEHICLES_API      = "http://localhost:8000/vehicles";
-const SARTHI_API        = "http://localhost:8000/sarthi";
-const FLIGHT_GROUPS_API = "http://localhost:8000/flight-groups";
-const ASSIGNMENTS_API   = "http://localhost:8000/assignments";
+import { API_BASE } from "../lib/api";
+const VEHICLES_API      = `${API_BASE}/vehicles`;
+const SARTHI_API        = `${API_BASE}/sarthi`;
+const FLIGHT_GROUPS_API = `${API_BASE}/flight-groups`;
+const ASSIGNMENTS_API   = `${API_BASE}/assignments`;
 
 interface Vehicle {
   id: string;

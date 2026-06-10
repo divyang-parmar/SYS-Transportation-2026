@@ -4,8 +4,9 @@ import { Plane } from "lucide-react";
 import { GoogleAuthModal } from "./GoogleAuthModal";
 import { registeredUsers, type Role } from "../data/mockData";
 
-const ADMIN_USERS_API = "http://localhost:8000/admin-users";
-const SARTHI_API      = "http://localhost:8000/sarthi";
+import { API_BASE } from "../lib/api";
+const ADMIN_USERS_API = `${API_BASE}/admin-users`;
+const SARTHI_API      = `${API_BASE}/sarthi`;
 
 interface Props {
   onLogin: (role: Role, name: string, id?: string) => void;

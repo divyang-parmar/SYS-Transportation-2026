@@ -2,11 +2,12 @@ import { useState, useEffect, type ReactNode } from "react";
 import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle } from "lucide-react";
 import { registeredUsers, type Role, type User } from "../data/mockData";
 
-const ADMIN_USERS_API = "http://localhost:8000/admin-users";
-const SARTHI_API = "http://localhost:8000/sarthi";
-const EMAIL_API = "http://localhost:8000/email";
-const TEMPLATES_API = "http://localhost:8000/templates";
-const VEHICLES_API = "http://localhost:8000/vehicles";
+import { API_BASE } from "../lib/api";
+const ADMIN_USERS_API = `${API_BASE}/admin-users`;
+const SARTHI_API      = `${API_BASE}/sarthi`;
+const EMAIL_API       = `${API_BASE}/email`;
+const TEMPLATES_API   = `${API_BASE}/templates`;
+const VEHICLES_API    = `${API_BASE}/vehicles`;
 
 interface Props {
   onBack: () => void;
