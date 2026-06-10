@@ -1,0 +1,28 @@
+This web-app is regarding Suhradam Parivar Shibir Airport Transportation
+1. I want a super admin screen that can assign roles to people using Gmail. Roles such as Drivers, Transportation Admin
+2. On the first screen, I want to have two login buttons, “Driver Login” and “Transportation Admin” who can log in using Google.
+3.  If the admin logins into “Transportation Admin” role, they should see the “Arrival” and “Departure” tabs in the second screen.
+    1. Arrival Tab will open in third screen and show the following details -
+        1. Total Arrival Bookings
+        2. In this tab, the admin can make a list of drivers and
+        3. Also, can see the flight timings-wise groups passenger list, and also assign Drivers from the tab
+    2. Departure Tab will open in fourth screen and show the following details-
+        1. Total Departure Bookings
+        2. In this tab, the admin can make a list of drivers and
+        3. Also, can see the flight timings-wise groups passenger list, and also assign Drivers from the tab
+4. If the user login in the “Driver Login”, they should be able to see the following details in the 5th screen -
+    1. Pickup details
+        1. Name:
+        2. Number
+        3. Mandal
+        4. How many passengers:
+        5. Destination: 
+        6. Wheelchair / Car seat required
+		
+		
+5. For 1st screen, Authentication & Authorization Flow:
+Give me only 1 login option which will decide if its Super Admin, Sarthi or Transportation Admin based on user and roles from backend
+
+User clicks "Sign in with Google" Your backend validates the Gmail against your user database Check the assigned role (Super Admin, Transport Admin, or Sarthi) If no role assigned, show "Access Denied" message Redirect to role-specific dashboard
+
+6. In the Transportation admin dashboard, while showing the Incoming Flights — Passenger Groups, Can it also show scheduled flight time and Actual Flight time and date wise
