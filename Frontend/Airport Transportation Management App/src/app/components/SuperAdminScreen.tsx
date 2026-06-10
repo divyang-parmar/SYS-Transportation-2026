@@ -116,6 +116,8 @@ export function SuperAdminScreen({ onBack }: Props) {
   const [newRole, setNewRole] = useState<Role>("driver");
   const [newPhone, setNewPhone] = useState("");
   const [addError, setAddError] = useState("");
+  const [conflictId, setConflictId] = useState<{ id: string; apiUrl: string } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<Role | "all">("all");
   const [isSending, setIsSending] = useState(false);
@@ -194,6 +196,7 @@ export function SuperAdminScreen({ onBack }: Props) {
     if ((newRole === "driver" || newRole === "transportation_admin") && !newPhone) return;
     setIsSending(true);
     setAddError("");
+    setConflictId(null);
 
     const finish = (newUser: User) => {
       setUsers((prev) => [...prev, newUser]);
@@ -226,6 +229,7 @@ export function SuperAdminScreen({ onBack }: Props) {
         } else if (res.status === 409) {
           const body = await res.json().catch(() => ({}));
           setAddError(body.detail ?? `${newEmail} is already registered.`);
+          if (body.existing_id) setConflictId({ id: body.existing_id, apiUrl });
           setIsSending(false);
         } else {
           setAddError("Something went wrong. Please try again.");
@@ -245,20 +249,23 @@ export function SuperAdminScreen({ onBack }: Props) {
   const handleDelete = async (userId: string) => {
     const target = users.find((u) => u.id === userId);
 
-    // MongoDB-backed users: await the API and only remove from state on success.
     if (/^[0-9a-f]{24}$/.test(userId)) {
       let deleteUrl: string | null = null;
-      if (target?.role === "transportation_admin") {
-        deleteUrl = `${ADMIN_USERS_API}/${userId}`;
-      } else if (target?.role === "driver") {
-        deleteUrl = `${SARTHI_API}/${userId}`;
-      }
+      if (target?.role === "transportation_admin") deleteUrl = `${ADMIN_USERS_API}/${userId}`;
+      else if (target?.role === "driver")          deleteUrl = `${SARTHI_API}/${userId}`;
+
       if (deleteUrl) {
         try {
           const res = await fetch(deleteUrl, { method: "DELETE" });
-          if (!res.ok) return; // Backend couldn't find/delete — keep user in list
+          if (!res.ok) {
+            setDeleteError(`Could not delete ${target?.name ?? "user"}. Please try again.`);
+            setTimeout(() => setDeleteError(""), 4000);
+            return;
+          }
         } catch {
-          return; // Network error — keep user in list
+          setDeleteError("Could not reach the server. Please try again.");
+          setTimeout(() => setDeleteError(""), 4000);
+          return;
         }
       }
     }
@@ -443,14 +450,28 @@ export function SuperAdminScreen({ onBack }: Props) {
             )}
 
             {addError && (
-              <div className="flex items-start gap-2 px-3 py-2.5" style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "4px" }}>
+              <div className="px-3 py-2.5 space-y-2" style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "4px" }}>
                 <p style={{ fontSize: "13px", color: "#B91C1C" }}>{addError}</p>
+                {conflictId && (
+                  <button
+                    onClick={async () => {
+                      await fetch(`${conflictId.apiUrl}/${conflictId.id}`, { method: "DELETE" });
+                      setAddError("");
+                      setConflictId(null);
+                      setUsers((prev) => prev.filter((u) => u.id !== conflictId.id));
+                      handleAdd();
+                    }}
+                    style={{ fontSize: "12px", fontWeight: 600, color: "#B91C1C", background: "none", border: "1px solid #FECACA", borderRadius: "4px", padding: "4px 10px", cursor: "pointer" }}
+                  >
+                    Remove existing record &amp; re-add
+                  </button>
+                )}
               </div>
             )}
 
             <div className="flex justify-end gap-3">
               <button
-                onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewRole("driver"); setAddError(""); }}
+                onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewRole("driver"); setAddError(""); setConflictId(null); }}
                 className="transition-colors hover:bg-secondary"
                 style={{ padding: "12px 24px", borderRadius: "4px", border: "2px solid #0C71C3", fontSize: "14px", fontWeight: 600, color: "#0C71C3", backgroundColor: "#FFFFFF" }}
                 disabled={isSending}
@@ -476,6 +497,12 @@ export function SuperAdminScreen({ onBack }: Props) {
                 )}
               </button>
             </div>
+          </div>
+        )}
+
+        {deleteError && (
+          <div className="flex items-center gap-2 px-3 py-2.5" style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "4px" }}>
+            <p style={{ fontSize: "13px", color: "#B91C1C" }}>{deleteError}</p>
           </div>
         )}
 

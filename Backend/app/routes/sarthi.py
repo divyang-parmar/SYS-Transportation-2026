@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.config import settings
@@ -69,12 +70,12 @@ async def create_sarthi(body: SarthiCreate):
 
     existing_email = await db[settings.sarthi_collection].find_one({"email": email})
     if existing_email:
-        raise HTTPException(status_code=409, detail=f"{email} is already registered.")
+        return JSONResponse(status_code=409, content={"detail": f"{email} is already registered.", "existing_id": str(existing_email["_id"])})
 
     if phone:
         existing_phone = await db[settings.sarthi_collection].find_one({"phone": phone})
         if existing_phone:
-            raise HTTPException(status_code=409, detail=f"Phone number {phone} is already registered.")
+            return JSONResponse(status_code=409, content={"detail": f"Phone number {phone} is already registered.", "existing_id": str(existing_phone["_id"])})
 
     doc = {
         "full_name":  body.name.strip(),
