@@ -66,6 +66,7 @@ export const registeredUsers: User[] = [
   { id: "u4", name: "Mahesh Kumar", email: "mahesh.kumar@gmail.com", role: "driver" },
   { id: "u5", name: "Rajesh Mehta", email: "rajesh.mehta@gmail.com", role: "driver" },
   { id: "u6", name: "Suresh Joshi", email: "suresh.joshi@gmail.com", role: "driver" },
+  { id: "u7", name: "Divyang Parmar", email: "divyang.parmar1407@gmail.com", role: "super_admin" },
 ];
 
 export const drivers: Driver[] = [
