@@ -5,6 +5,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.utils import formataddr
 
+import httpx
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -116,7 +118,26 @@ def _build_html(name: str, email: str, role: str, body_text: str) -> str:
 </html>"""
 
 
-def _send_sync(name: str, to_email: str, role: str, subject: str, body_text: str) -> None:
+async def _send_via_resend(name: str, to_email: str, role: str, subject: str, body_text: str) -> bool:
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
+            json={
+                "from": settings.resend_from,
+                "to": [to_email],
+                "subject": subject,
+                "html": _build_html(name, to_email, role, body_text),
+            },
+        )
+    if resp.status_code in (200, 201):
+        logger.info("Invite email sent via Resend to %s (%s)", to_email, role)
+        return True
+    logger.error("Resend error %s for %s: %s", resp.status_code, to_email, resp.text)
+    return False
+
+
+def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text: str) -> None:
     from_addr = formataddr((settings.smtp_from_name, settings.smtp_user))
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -134,14 +155,24 @@ def _send_sync(name: str, to_email: str, role: str, subject: str, body_text: str
 
 
 async def send_invite_email(name: str, email: str, role: str, subject: str, body_text: str) -> bool:
-    if not settings.smtp_user or not settings.smtp_password:
-        logger.warning("SMTP credentials not configured — skipping invite email for %s", email)
-        return False
-    loop = asyncio.get_event_loop()
-    try:
-        await loop.run_in_executor(None, _send_sync, name, email, role, subject, body_text)
-        logger.info("Invite email sent to %s (%s)", email, role)
-        return True
-    except Exception as exc:
-        logger.error("Failed to send invite email to %s: %s", email, exc)
-        return False
+    # Prefer Resend (HTTP-based, works on Render free tier)
+    if settings.resend_api_key:
+        try:
+            return await _send_via_resend(name, email, role, subject, body_text)
+        except Exception as exc:
+            logger.error("Failed to send invite email via Resend to %s: %s", email, exc)
+            return False
+
+    # Fall back to SMTP (works locally, blocked on Render free tier)
+    if settings.smtp_user and settings.smtp_password:
+        loop = asyncio.get_event_loop()
+        try:
+            await loop.run_in_executor(None, _send_via_smtp, name, email, role, subject, body_text)
+            logger.info("Invite email sent via SMTP to %s (%s)", email, role)
+            return True
+        except Exception as exc:
+            logger.error("Failed to send invite email via SMTP to %s: %s", email, exc)
+            return False
+
+    logger.warning("No email provider configured — skipping invite email for %s", email)
+    return False

@@ -35,7 +35,11 @@ class Settings(BaseSettings):
     twilio_auth_token: str = Field(default="", alias="TWILIO_AUTH_TOKEN")
     twilio_from_number: str = Field(default="", alias="TWILIO_FROM_NUMBER")
 
-    # Email / SMTP Configuration
+    # Email — Resend HTTP API (replaces SMTP, which is blocked on Render free tier)
+    resend_api_key: str = Field(default="", alias="RESEND_API_KEY")
+    resend_from: str = Field(default="onboarding@resend.dev", alias="RESEND_FROM")
+
+    # Email / SMTP Configuration (kept for local dev fallback)
     smtp_host: str = Field(default="smtp.gmail.com", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")
