@@ -47,11 +47,11 @@ async def send_invite(body: InviteRequest):
         "name":    body.name,
         "email":   body.email,
         "role":    ROLE_LABELS.get(body.role, body.role),
-        "app_url": "https://airporttransport.app",
+        "app_url": "https://sps-transportation-2026.vercel.app/",
     }
 
     subject   = _substitute(raw_subject, variables)
     body_text = _substitute(raw_body, variables)
 
-    sent = await send_invite_email(body.name, body.email, body.role, subject, body_text)
+    sent = await send_invite_email(body.name, body.email, body.role, subject, body_text, variables["app_url"])
     return {"sent": sent, "email": body.email}

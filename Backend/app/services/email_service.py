@@ -30,7 +30,7 @@ def _body_to_html(body_text: str) -> str:
     return "\n".join(parts)
 
 
-def _build_html(name: str, email: str, role: str, body_text: str) -> str:
+def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
     html_body  = _body_to_html(body_text)
     return f"""<!DOCTYPE html>
@@ -94,7 +94,7 @@ def _build_html(name: str, email: str, role: str, body_text: str) -> str:
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background:#0C71C3;border-radius:8px;">
-                    <a href="https://sps-transportation.app" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
+                    <a href="{app_url}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
                       Open App &#8594;
                     </a>
                   </td>
@@ -118,14 +118,14 @@ def _build_html(name: str, email: str, role: str, body_text: str) -> str:
 </html>"""
 
 
-async def _send_via_sendgrid(name: str, to_email: str, role: str, subject: str, body_text: str) -> bool:
+async def _send_via_sendgrid(name: str, to_email: str, role: str, subject: str, body_text: str, app_url: str = "") -> bool:
     payload = {
         "personalizations": [{"to": [{"email": to_email, "name": name}]}],
         "from": {"email": settings.sendgrid_from_email, "name": settings.sendgrid_from_name},
         "subject": subject,
         "content": [
             {"type": "text/plain", "value": body_text},
-            {"type": "text/html",  "value": _build_html(name, to_email, role, body_text)},
+            {"type": "text/html",  "value": _build_html(name, to_email, role, body_text, app_url)},
         ],
     }
     async with httpx.AsyncClient(timeout=15) as client:
@@ -141,7 +141,7 @@ async def _send_via_sendgrid(name: str, to_email: str, role: str, subject: str, 
     return False
 
 
-def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text: str) -> None:
+def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text: str, app_url: str = "") -> None:
     from_addr = formataddr((settings.smtp_from_name, settings.smtp_user))
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -149,7 +149,7 @@ def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text:
     msg["To"]      = to_email
 
     msg.attach(MIMEText(body_text, "plain"))
-    msg.attach(MIMEText(_build_html(name, to_email, role, body_text), "html"))
+    msg.attach(MIMEText(_build_html(name, to_email, role, body_text, app_url), "html"))
 
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
         server.ehlo()
@@ -158,11 +158,11 @@ def _send_via_smtp(name: str, to_email: str, role: str, subject: str, body_text:
         server.sendmail(settings.smtp_user, to_email, msg.as_string())
 
 
-async def send_invite_email(name: str, email: str, role: str, subject: str, body_text: str) -> bool:
+async def send_invite_email(name: str, email: str, role: str, subject: str, body_text: str, app_url: str = "") -> bool:
     # Prefer SendGrid (HTTPS/443, works on Render free tier)
     if settings.sendgrid_api_key and settings.sendgrid_from_email:
         try:
-            return await _send_via_sendgrid(name, email, role, subject, body_text)
+            return await _send_via_sendgrid(name, email, role, subject, body_text, app_url)
         except Exception as exc:
             logger.error("Failed to send invite email via SendGrid to %s: %s", email, exc)
             return False
@@ -171,7 +171,7 @@ async def send_invite_email(name: str, email: str, role: str, subject: str, body
     if settings.smtp_user and settings.smtp_password:
         loop = asyncio.get_event_loop()
         try:
-            await loop.run_in_executor(None, _send_via_smtp, name, email, role, subject, body_text)
+            await loop.run_in_executor(None, _send_via_smtp, name, email, role, subject, body_text, app_url)
             logger.info("Invite email sent via SMTP to %s (%s)", email, role)
             return True
         except Exception as exc:

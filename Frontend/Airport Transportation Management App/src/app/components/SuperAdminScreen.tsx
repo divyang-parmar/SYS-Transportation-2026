@@ -171,7 +171,7 @@ export function SuperAdminScreen({ onBack }: Props) {
       name:    emailPreview.name,
       email:   emailPreview.email,
       role:    roleLabels[emailPreview.role] ?? emailPreview.role,
-      app_url: "https://airporttransport.app",
+      app_url: "https://sps-transportation-2026.vercel.app/",
     };
     const sub = (t: string) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), t);
 
@@ -906,7 +906,7 @@ function TemplatesTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // On mount: fetch saved templates from MongoDB and overlay on top of defaults.
+  // On mount: fetch saved templates from MongoDB, overlay on defaults, and seed any missing ones.
   useEffect(() => {
     fetch(`${TEMPLATES_API}/`)
       .then((r) => r.json())
@@ -917,6 +917,19 @@ function TemplatesTab() {
             return fromDB ? { ...def, ...fromDB } : def;
           })
         );
+        // Seed templates that have never been saved to MongoDB so edits always persist.
+        DEFAULT_TEMPLATES.forEach((def) => {
+          if (!saved.find((s) => s.id === def.id)) {
+            fetch(`${TEMPLATES_API}/${def.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                channel: def.channel, name: def.name,
+                subject: def.subject ?? null, body: def.body, variables: def.variables,
+              }),
+            }).catch(() => {});
+          }
+        });
       })
       .catch(() => {}); // network down → keep built-in defaults
   }, []);
