@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     )
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
+    allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
 
     # Security Configuration
     webhook_timeout_seconds: int = Field(default=30, alias="WEBHOOK_TIMEOUT_SECONDS")

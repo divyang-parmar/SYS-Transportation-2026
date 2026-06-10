@@ -55,9 +55,13 @@ app = FastAPI(
 
 
 # CORS Middleware
+_origins = (
+    ["*"] if settings.allowed_origins.strip() == "*"
+    else [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://form.jotform.com"] if not settings.debug else ["*"],
+    allow_origins=_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
