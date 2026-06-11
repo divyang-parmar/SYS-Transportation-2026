@@ -17,9 +17,16 @@ ROLE_LABELS = {
     "super_admin": "Super Admin",
 }
 
+ROLE_DESCRIPTIONS = {
+    "super_admin":          "Manage users, roles, vehicles, notification templates, and all transportation operations.",
+    "transportation_admin": "Manage flight groups, assign Sarthis to passengers, and oversee transportation logistics.",
+    "driver":               "View your assigned passengers and pickup schedule. Pick up and drop off passengers as assigned.",
+}
+
 
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
+    role_desc = ROLE_DESCRIPTIONS.get(role, "")
     body_html = body_text.replace("\n", "<br>")
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -68,16 +75,17 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                 <h1 class="title">Secure Access Invitation</h1>
 
                 <p class="greeting">
-                  Hi <strong>{name}</strong>,<br><br>
+                  Hi {name},
                 </p>
 
                 <p class="greeting">
-                  You've been invited to the SPS Transportation Management App </strong> 
+                  You've been invited to the SPS Transportation Management App 
                 </p>
 
                 <div class="info-box">
                   <div class="info-label">Assigned Role</div>
                   <div class="role-badge">{role_label}</div>
+                  {f'<div style="font-size:12px;color:#64748b;margin-top:8px;">{role_desc}</div>' if role_desc else ''}
                 </div>
 
                 <div class="info-box">
