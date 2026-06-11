@@ -187,6 +187,7 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
                 key={p.id}
                 passenger={p}
                 sarthis={sarthis}
+                vehicles={vehicles}
                 assignedSarthiId={assignments[p.id]}
                 onAssign={(sarthiId) => onAssign(p.id, sarthiId)}
                 onUnassign={() => onUnassign(p.id)}
@@ -202,12 +203,14 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
 function PassengerRow({
   passenger,
   sarthis,
+  vehicles,
   assignedSarthiId,
   onAssign,
   onUnassign,
 }: {
   passenger: Passenger;
   sarthis: Sarthi[];
+  vehicles?: Vehicle[];
   assignedSarthiId?: string;
   onAssign: (sarthiId: string) => void;
   onUnassign: () => void;
