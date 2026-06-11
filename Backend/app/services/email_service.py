@@ -35,8 +35,27 @@ See you soon!
 — Airport Transportation"""
 
 
-def _build_assignment_html(body_text: str) -> str:
-    body_html = body_text.replace("\n", "<br>")
+def _build_assignment_html(variables: dict) -> str:
+    passenger_name = variables.get("passenger_name", "")
+    sarthi_name = variables.get("sarthi_name", "")
+    sarthi_phone = variables.get("sarthi_phone", "")
+    flight_number = variables.get("flight_number", "")
+    pickup_date = variables.get("pickup_date", "")
+    pickup_time = variables.get("pickup_time", "")
+    vehicle_make = variables.get("vehicle_make", "")
+    vehicle_name = variables.get("vehicle_name", "")
+    vehicle_number = variables.get("vehicle_number", "")
+
+    # Vehicle section only if at least one vehicle field is non-empty
+    vehicle_section = ""
+    if any([vehicle_make, vehicle_name, vehicle_number]):
+        vehicle_display = f"{vehicle_make} {vehicle_name} ({vehicle_number})".strip()
+        vehicle_section = f"""
+                <div class="info-box">
+                  <div class="info-label">Vehicle</div>
+                  <div class="info-value">{vehicle_display}</div>
+                </div>"""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -51,8 +70,13 @@ def _build_assignment_html(body_text: str) -> str:
     .wrapper {{ width: 100%; table-layout: fixed; background-color: #f4f6f9; padding-bottom: 40px; }}
     .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #f4f6f9; }}
     .card {{ background-color: #ffffff; border-radius: 12px; padding: 32px 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-top: 28px; }}
-    .title {{ margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center; }}
-    .body-text {{ font-size: 15px; line-height: 24px; color: #334155; white-space: pre-wrap; word-wrap: break-word; }}
+    .title {{ margin: 0 0 24px 0; font-size: 20px; font-weight: 700; color: #0f172a; }}
+    .greeting {{ font-size: 15px; line-height: 24px; color: #334155; margin: 0 0 24px 0; }}
+    .info-box {{ background-color: #f8fafc; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #f1f5f9; }}
+    .info-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }}
+    .info-value {{ font-size: 15px; font-weight: 600; color: #1e293b; }}
+    .info-row {{ margin-bottom: 12px; }}
+    .info-row:last-child {{ margin-bottom: 0; }}
     .footer {{ text-align: center; padding: 24px 20px 0 20px; font-size: 12px; line-height: 18px; color: #94a3b8; }}
   </style>
 </head>
@@ -67,12 +91,41 @@ def _build_assignment_html(body_text: str) -> str:
           </td>
       </tr>
       <tr>
-        <td style="padding:28px 32px;text-align:center">
+        <td style="padding:28px 32px">
           <table class="card" role="presentation" width="100%">
             <tr>
               <td>
                 <h1 class="title">Pickup Confirmation</h1>
-                <p class="body-text">{body_html}</p>
+                <p class="greeting">Hi {passenger_name},</p>
+                <p style="font-size: 15px; line-height: 24px; color: #334155; margin: 0 0 24px 0;">Your Sarthi has been assigned to pick you up for your flight.</p>
+
+                <div class="info-box">
+                  <div class="info-label">Your Sarthi</div>
+                  <div class="info-row">
+                    <div class="info-value">{sarthi_name}</div>
+                  </div>
+                  <div class="info-row">
+                    <div class="info-value">{sarthi_phone}</div>
+                  </div>
+                </div>
+
+                <div class="info-box">
+                  <div class="info-label">Flight Details</div>
+                  <div class="info-row">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px;">Flight Number</div>
+                    <div class="info-value">{flight_number}</div>
+                  </div>
+                  <div class="info-row">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px;">Date</div>
+                    <div class="info-value">{pickup_date}</div>
+                  </div>
+                  <div class="info-row">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px;">Time</div>
+                    <div class="info-value">{pickup_time}</div>
+                  </div>
+                </div>
+{vehicle_section}
+                <p style="font-size: 15px; line-height: 24px; color: #334155; margin: 24px 0 0 0;">See you soon!<br>— Airport Transportation</p>
               </td>
             </tr>
           </table>
@@ -184,14 +237,14 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
 </html>"""
 
 
-async def _send_assignment_via_sendgrid(to_email: str, to_name: str, subject: str, body_text: str) -> bool:
+async def _send_assignment_via_sendgrid(to_email: str, to_name: str, subject: str, body_text: str, variables: dict) -> bool:
     payload = {
         "personalizations": [{"to": [{"email": to_email, "name": to_name}]}],
         "from": {"email": settings.sendgrid_from_email, "name": settings.sendgrid_from_name},
         "subject": subject,
         "content": [
             {"type": "text/plain", "value": body_text},
-            {"type": "text/html",  "value": _build_assignment_html(body_text)},
+            {"type": "text/html",  "value": _build_assignment_html(variables)},
         ],
     }
     async with httpx.AsyncClient(timeout=15) as client:
@@ -207,7 +260,7 @@ async def _send_assignment_via_sendgrid(to_email: str, to_name: str, subject: st
     return False
 
 
-def _send_assignment_via_smtp(to_email: str, to_name: str, subject: str, body_text: str) -> None:
+def _send_assignment_via_smtp(to_email: str, to_name: str, subject: str, body_text: str, variables: dict) -> None:
     from_addr = formataddr((settings.smtp_from_name, settings.smtp_user))
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -215,7 +268,7 @@ def _send_assignment_via_smtp(to_email: str, to_name: str, subject: str, body_te
     msg["To"]      = to_email
 
     msg.attach(MIMEText(body_text, "plain"))
-    msg.attach(MIMEText(_build_assignment_html(body_text), "html"))
+    msg.attach(MIMEText(_build_assignment_html(variables), "html"))
 
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
         server.ehlo()
@@ -288,11 +341,11 @@ async def send_invite_email(name: str, email: str, role: str, subject: str, body
     return False
 
 
-async def send_assignment_email(to_email: str, to_name: str, subject: str, body_text: str) -> bool:
+async def send_assignment_email(to_email: str, to_name: str, subject: str, body_text: str, variables: dict) -> bool:
     # Prefer SendGrid (HTTPS/443, works on Render free tier)
     if settings.sendgrid_api_key and settings.sendgrid_from_email:
         try:
-            return await _send_assignment_via_sendgrid(to_email, to_name, subject, body_text)
+            return await _send_assignment_via_sendgrid(to_email, to_name, subject, body_text, variables)
         except Exception as exc:
             logger.error("Failed to send assignment email via SendGrid to %s: %s", to_email, exc)
             return False
@@ -301,7 +354,7 @@ async def send_assignment_email(to_email: str, to_name: str, subject: str, body_
     if settings.smtp_user and settings.smtp_password:
         loop = asyncio.get_event_loop()
         try:
-            await loop.run_in_executor(None, _send_assignment_via_smtp, to_email, to_name, subject, body_text)
+            await loop.run_in_executor(None, _send_assignment_via_smtp, to_email, to_name, subject, body_text, variables)
             logger.info("Assignment email sent via SMTP to %s", to_email)
             return True
         except Exception as exc:
