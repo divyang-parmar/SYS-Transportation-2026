@@ -1,6 +1,7 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle } from "lucide-react";
+import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle, Moon, Sun } from "lucide-react";
 import { registeredUsers, type Role, type User } from "../data/mockData";
+import { useTheme } from "../hooks/useTheme";
 
 import { API_BASE } from "../lib/api";
 const ADMIN_USERS_API = `${API_BASE}/admin-users`;
@@ -107,6 +108,7 @@ interface EmailPreviewData {
 }
 
 export function SuperAdminScreen({ onBack }: Props) {
+  const { isDark, toggle } = useTheme();
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   // Seed with super_admin mock only; TA and Sarthi users load from MongoDB.
   const [users, setUsers] = useState<User[]>(registeredUsers.filter((u) => u.role !== "transportation_admin" && u.role !== "driver"));
@@ -284,13 +286,16 @@ export function SuperAdminScreen({ onBack }: Props) {
   return (
     <div className="min-h-screen bg-background">
       {/* Top nav */}
-      <div className="bg-white sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid #CCCCCC", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
+      <div className="bg-card sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid var(--border)", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
         <div>
           <h1 style={{ fontSize: "16px", fontWeight: 600, color: "#173D61", lineHeight: 1.2 }}>Super Admin Panel</h1>
           <p style={{ fontSize: "13px", color: "#999999" }}>Manage roles and access</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <ShieldCheck className="w-5 h-5" style={{ color: "#0C71C3" }} />
+          <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
+            {isDark ? <Sun className="w-5 h-5 text-muted-foreground" /> : <Moon className="w-5 h-5 text-muted-foreground" />}
+          </button>
           <button onClick={onBack} className="p-2 rounded transition-colors hover:bg-secondary" style={{ color: "#494D52" }} title="Logout">
             <LogOut className="w-5 h-5" />
           </button>

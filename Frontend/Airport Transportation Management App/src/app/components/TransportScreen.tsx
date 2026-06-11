@@ -13,7 +13,10 @@ import {
   LayoutGrid,
   Mail,
   Loader2,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useTheme } from "../hooks/useTheme";
 import { BhaktosDashboard } from "./BhaktosDashboard";
 import { type FlightGroup, type Passenger } from "../data/mockData";
 import { type Sarthi as SarthiOption } from "./FlightGroupView";
@@ -46,6 +49,7 @@ interface Props {
 }
 
 export function TransportScreen({ onBack, adminName }: Props) {
+  const { isDark, toggle } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("bhaktos");
   const [arrivalAssignments, setArrivalAssignments] = useState<Record<string, string>>({});
   const [departureAssignments, setDepartureAssignments] = useState<Record<string, string>>({});
@@ -182,11 +186,14 @@ export function TransportScreen({ onBack, adminName }: Props) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top nav */}
-      <div className="bg-white sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid #CCCCCC", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
+      <div className="bg-card sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid var(--border)", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
         <div className="flex-1">
           <h1 style={{ fontSize: "16px", fontWeight: 600, color: "#173D61", lineHeight: 1.2 }}>Transportation Admin</h1>
           <p style={{ fontSize: "13px", color: "#999999" }}>{adminName}</p>
         </div>
+        <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
+          {isDark ? <Sun className="w-5 h-5 text-muted-foreground" /> : <Moon className="w-5 h-5 text-muted-foreground" />}
+        </button>
         <button onClick={onBack} className="p-2 rounded transition-colors hover:bg-secondary" style={{ color: "#494D52" }} title="Sign out">
           <LogOut className="w-5 h-5" />
         </button>

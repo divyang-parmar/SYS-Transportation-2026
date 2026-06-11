@@ -1,5 +1,6 @@
 import { useState, useEffect, type ReactNode } from "react";
-import { MapPin, Phone, Users, Clock, Plane, Accessibility, CheckCircle2, Circle, LogOut, Loader2, Mail } from "lucide-react";
+import { MapPin, Phone, Users, Clock, Plane, Accessibility, CheckCircle2, Circle, LogOut, Loader2, Mail, Moon, Sun } from "lucide-react";
+import { useTheme } from "../hooks/useTheme";
 
 import { API_BASE } from "../lib/api";
 const ASSIGNMENTS_API = `${API_BASE}/assignments`;
@@ -40,6 +41,7 @@ function formatDate(iso: string): string {
 }
 
 export function DriverScreen({ onBack, driverName, driverId }: Props) {
+  const { isDark, toggle } = useTheme();
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [sarthiInfo, setSarthiInfo] = useState<SarthiInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -84,11 +86,14 @@ export function DriverScreen({ onBack, driverName, driverId }: Props) {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Top nav */}
-      <div className="bg-white sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid #CCCCCC", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
+      <div className="bg-card sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid var(--border)", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
         <div className="flex-1">
           <h1 style={{ fontSize: "16px", fontWeight: 600, color: "#173D61", lineHeight: 1.2 }}>My Pickup List</h1>
           <p style={{ fontSize: "13px", color: "#999999" }}>{displayName}</p>
         </div>
+        <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
+          {isDark ? <Sun className="w-5 h-5 text-muted-foreground" /> : <Moon className="w-5 h-5 text-muted-foreground" />}
+        </button>
         <button onClick={onBack} className="p-2 rounded transition-colors hover:bg-secondary" style={{ color: "#494D52" }}>
           <LogOut className="w-5 h-5" />
         </button>

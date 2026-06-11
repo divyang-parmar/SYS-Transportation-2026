@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import { Plane } from "lucide-react";
+import { Plane, Moon, Sun } from "lucide-react";
 import { GoogleAuthModal } from "./GoogleAuthModal";
 import { registeredUsers, type Role } from "../data/mockData";
+import { useTheme } from "../hooks/useTheme";
 
 import { API_BASE } from "../lib/api";
 const ADMIN_USERS_API = `${API_BASE}/admin-users`;
@@ -15,6 +16,7 @@ interface Props {
 export type AuthStep = "idle" | "checking" | "denied" | "success";
 
 export function LoginScreen({ onLogin }: Props) {
+  const { isDark, toggle } = useTheme();
   const [step, setStep]                 = useState<AuthStep>("idle");
   const [email, setEmail]               = useState("");
   const [denialReason, setDenialReason] = useState("");
@@ -141,9 +143,14 @@ export function LoginScreen({ onLogin }: Props) {
       </div>
 
       <div style={{ paddingBottom: "32px", textAlign: "center" }}>
-        <p style={{ fontSize: "13px", color: "#CCCCCC", marginBottom: "10px" }}>
-          Suhradam Parivar Shibir · Transportation Management
-        </p>
+        <div style={{ marginBottom: "12px", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
+          <p style={{ fontSize: "13px", color: "#CCCCCC", margin: 0 }}>
+            Suhradam Parivar Shibir · Transportation Management
+          </p>
+          <button onClick={toggle} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
+            {isDark ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
+          </button>
+        </div>
         <p style={{ fontSize: "11px", color: "#BBBBBB", lineHeight: 1.6 }}>
           By signing in, you agree to our{" "}
           <a

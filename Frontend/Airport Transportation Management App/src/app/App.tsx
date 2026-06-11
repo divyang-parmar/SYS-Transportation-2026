@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { LoginScreen } from "./components/LoginScreen";
 import { SuperAdminScreen } from "./components/SuperAdminScreen";
@@ -19,6 +19,14 @@ interface AuthUser {
 export default function App() {
   const [screen, setScreen] = useState<Screen>("login");
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    if (saved === "dark" || (!saved && prefersDark)) {
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
 
   const handleLogin = (role: Role, name: string, id?: string) => {
     setAuthUser({ role, name, id });
