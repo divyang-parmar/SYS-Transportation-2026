@@ -311,7 +311,7 @@ export function SuperAdminScreen({ onBack }: Props) {
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-border overflow-x-auto scrollbar-hide">
           {([
             { id: "users" as AdminTab, label: "Users", icon: <Users className="w-4 h-4" /> },
             { id: "templates" as AdminTab, label: "Notification Templates", icon: <Bell className="w-4 h-4" /> },
@@ -320,7 +320,7 @@ export function SuperAdminScreen({ onBack }: Props) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 transition-colors"
+              className="flex items-center gap-2 transition-colors flex-shrink-0 whitespace-nowrap"
               style={{
                 fontSize: "14px",
                 fontWeight: 600,

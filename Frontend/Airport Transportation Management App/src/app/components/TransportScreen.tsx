@@ -200,7 +200,7 @@ export function TransportScreen({ onBack, adminName }: Props) {
       </div>
 
       {/* Tab bar */}
-      <div className="bg-white px-8 flex gap-0" style={{ borderBottom: "1px solid #CCCCCC" }}>
+      <div className="bg-card flex gap-0 overflow-x-auto scrollbar-hide px-4" style={{ borderBottom: "1px solid var(--border)" }}>
         {([
           { id: "bhaktos",       label: "Bhaktos Dashboard", icon: <LayoutGrid className="w-4 h-4" /> },
           { id: "arrival",       label: "Arrival",           icon: <PlaneLanding className="w-4 h-4" /> },
@@ -211,7 +211,7 @@ export function TransportScreen({ onBack, adminName }: Props) {
           <button
             key={id}
             onClick={() => { setActiveTab(id); if (id !== "sarthi_roster") setSelectedDate("all"); }}
-            className="flex items-center gap-2 transition-colors"
+            className="flex items-center gap-2 transition-colors flex-shrink-0 whitespace-nowrap"
             style={{
               padding: "0 20px",
               height: "48px",
