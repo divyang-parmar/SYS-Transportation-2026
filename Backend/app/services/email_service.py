@@ -18,102 +18,88 @@ ROLE_LABELS = {
 }
 
 
-def _body_to_html(body_text: str) -> str:
-    """Convert plain-text template body (with \\n paragraph breaks) to HTML paragraphs."""
-    paragraphs = body_text.split("\n\n")
-    parts = []
-    for para in paragraphs:
-        inner = para.replace("\n", "<br>")
-        parts.append(
-            f'<p style="margin:0 0 16px;font-size:14px;color:#374151;line-height:1.7;">{inner}</p>'
-        )
-    return "\n".join(parts)
-
-
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
-    html_body  = _body_to_html(body_text)
+    body_html = body_text.replace("\n", "<br>")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>You're Invited</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPS Access Invitation</title>
+  <style>
+    body {{ margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }}
+    table {{ border-spacing: 0; width: 100%; }}
+    td {{ padding: 0; }}
+    img {{ border: 0; }}
+    .wrapper {{ width: 100%; table-layout: fixed; background-color: #f4f6f9; padding-bottom: 40px; }}
+    .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #f4f6f9; }}
+    .header {{ padding: 32px 20px 24px 20px; text-align: center; }}
+    .header h2 {{ margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #1e3a8a; }}
+    .header p {{ margin: 4px 0 0 0; font-size: 13px; color: #64748b; font-weight: 500; }}
+    .card {{ background-color: #ffffff; border-radius: 12px; padding: 32px 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
+    .title {{ margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center; }}
+    .greeting {{ font-size: 15px; line-height: 24px; color: #334155; margin: 0 0 24px 0; }}
+    .info-box {{ background-color: #f8fafc; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #f1f5f9; }}
+    .info-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }}
+    .info-value {{ font-size: 15px; font-weight: 600; color: #1e293b; }}
+    .role-badge {{ display: inline-block; background-color: #eff6ff; color: #2563eb; padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 700; margin-top: 2px; }}
+    .btn-container {{ text-align: center; margin: 28px 0 12px 0; }}
+    .btn {{ background-color: #2563eb; color: #ffffff !important; display: inline-block; padding: 12px 32px; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }}
+    .footer {{ text-align: center; padding: 24px 20px 0 20px; font-size: 12px; line-height: 18px; color: #94a3b8; }}
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;padding:32px 0;">
-    <tr>
-      <td align="center">
-        <table width="520" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-          <!-- Header -->
-          <tr>
-            <td style="background:#0C71C3;padding:28px 32px;text-align:center;">
-              <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-                &#9992; Suharadam Parivar Shibir Transportation Management
-              </div>
-              <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px;">
-                Secure Access Invitation
-              </div>
-            </td>
-          </tr>
-          <!-- Role badge -->
-          <tr>
-            <td style="padding:24px 32px 0;">
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 16px;">
-                    <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#6b7280;margin-bottom:3px;">Your Role</div>
-                    <div style="font-size:15px;font-weight:600;color:#1d4ed8;">{role_label}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <!-- Template body -->
-          <tr>
-            <td style="padding:24px 32px 8px;">
-              {html_body}
-            </td>
-          </tr>
-          <!-- Login email box -->
-          <tr>
-            <td style="padding:0 32px 24px;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;padding:14px 16px;">
-                <tr>
-                  <td style="font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#9ca3af;padding-bottom:6px;">Login Email</td>
-                </tr>
-                <tr>
-                  <td style="font-size:14px;font-weight:600;color:#111827;">{email}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <!-- CTA -->
-          <tr>
-            <td style="padding:0 32px 32px;">
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background:#0C71C3;border-radius:8px;">
-                    <a href="{app_url}" style="display:inline-block;padding:12px 28px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
-                      Open App &#8594;
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <!-- Footer -->
-          <tr>
-            <td style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:16px 32px;text-align:center;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;">
-                Sent by Suharadam Parivar Shibir Transportation Management &nbsp;·&nbsp; noreply@sps-transportation.app
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
+<body>
+  <center class="wrapper">
+    <table class="main-table" role="presentation">
+
+      <tr>
+        <td class="header">
+          <h2>Suharadam Parivar Shibir</h2>
+          <p>Transportation Management</p>
+        </td>
+      </tr>
+
+      <tr>
+        <td style="padding: 0 16px;">
+          <table class="card" role="presentation" width="100%">
+            <tr>
+              <td>
+                <h1 class="title">Secure Access Invitation</h1>
+
+                <p class="greeting">
+                  Hi <strong>{name}</strong>,<br><br>
+                  {body_html}
+                </p>
+
+                <div class="info-box">
+                  <div class="info-label">Assigned Role</div>
+                  <div class="role-badge">{role_label}</div>
+                </div>
+
+                <div class="info-box">
+                  <div class="info-label">Authorized Login Email</div>
+                  <div class="info-value">{email}</div>
+                </div>
+
+                <div class="btn-container">
+                  <a href="{app_url}" class="btn" target="_blank">Go to Application &rarr;</a>
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr>
+        <td class="footer">
+          This invitation was generated by an administrator.<br>
+          If you were not expecting this access request, you can safely ignore this email.
+        </td>
+      </tr>
+
+    </table>
+  </center>
 </body>
 </html>"""
 
