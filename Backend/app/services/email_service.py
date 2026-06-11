@@ -61,12 +61,16 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
     <table class="main-table" role="presentation">
 
       <tr>
-        <td class="header">
-          <h2>Suharadam Parivar Shibir</h2>
-          <p>Transportation Management</p>
-        </td>
+          <td style="background:#0c71c3;padding:28px 32px;text-align:center">
+            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
+              <img data-emoji="✈" class="an1 CToWUd" alt="✈" aria-label="✈" draggable="false" src="https://fonts.gstatic.com/s/e/notoemoji/17.0/2708/72.png" loading="lazy" data-bit="iit"> Suharadam Parivar Shibir Transportation Management
+            </div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px">
+              Secure Access Invitation
+            </div>
+          </td>
       </tr>
-
+      
       <tr>
         <td style="padding: 0 16px;">
           <table class="card" role="presentation" width="100%">
