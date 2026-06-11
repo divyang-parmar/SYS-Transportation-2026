@@ -140,8 +140,30 @@ export function LoginScreen({ onLogin }: Props) {
         </div>
       </div>
 
-      <div style={{ paddingBottom: "32px", textAlign: "center", fontSize: "13px", color: "#CCCCCC" }}>
-        Suhradam Parivar Shibir · Transportation Management
+      <div style={{ paddingBottom: "32px", textAlign: "center" }}>
+        <p style={{ fontSize: "13px", color: "#CCCCCC", marginBottom: "10px" }}>
+          Suhradam Parivar Shibir · Transportation Management
+        </p>
+        <p style={{ fontSize: "11px", color: "#BBBBBB", lineHeight: 1.6 }}>
+          By signing in, you agree to our{" "}
+          <a
+            href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#0C71C3", textDecoration: "underline" }}
+          >
+            SMS Terms &amp; Conditions
+          </a>
+          {" "}and{" "}
+          <a
+            href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#0C71C3", textDecoration: "underline" }}
+          >
+            Privacy Policy
+          </a>
+        </p>
       </div>
 
       {step !== "idle" && (
