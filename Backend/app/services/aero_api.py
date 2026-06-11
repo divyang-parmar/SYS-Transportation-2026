@@ -96,6 +96,11 @@ async def get_flight_realtime(
     except ValueError:
         return None
 
+    # AeroAPI only serves data within ~7 days of today; skip silently outside that window.
+    today = datetime.now(timezone.utc).replace(tzinfo=None)
+    if abs((date - today).days) > 7:
+        return None
+
     end_date = date + timedelta(days=1)
 
     url = f"{_BASE}/flights/{ident}"
@@ -109,8 +114,8 @@ async def get_flight_realtime(
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             resp = await client.get(url, params=params, headers=headers)
-            if resp.status_code in (404, 422):
-                logger.info("AeroAPI: flight %s not found for %s", ident, date_str)
+            if resp.status_code in (400, 404, 422):
+                logger.info("AeroAPI: no data for %s on %s (HTTP %s)", ident, date_str, resp.status_code)
                 return None
             resp.raise_for_status()
             data = resp.json()
