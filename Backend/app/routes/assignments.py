@@ -134,10 +134,11 @@ async def _send_assignment_sms(
     try:
         db = get_database()
 
-        booking, sarthi_doc, template_doc = await asyncio.gather(
+        booking, sarthi_doc, template_doc, vehicle_doc = await asyncio.gather(
             db[settings.bookings_collection].find_one({"_id": booking_oid}),
             db[settings.sarthi_collection].find_one({"_id": sarthi_oid}),
             db[settings.templates_collection].find_one({"_id": "sms-sarthi-assigned"}),
+            db[settings.vehicles_collection].find_one({"assigned_driver_id": sarthi_oid}),
         )
 
         if not booking:
@@ -162,6 +163,10 @@ async def _send_assignment_sms(
         sarthi_name  = (sarthi_doc or {}).get("full_name", "")
         sarthi_phone = (sarthi_doc or {}).get("phone", "")
 
+        vehicle_make   = (vehicle_doc or {}).get("make", "")
+        vehicle_name   = (vehicle_doc or {}).get("vehicle_name", "")
+        vehicle_number = (vehicle_doc or {}).get("number_plate", "")
+
         section  = (flight_doc or {}).get(flight_type, {})
         dt_val   = section.get(f"{flight_type}_datetime")
         flight_number = (
@@ -183,9 +188,9 @@ async def _send_assignment_sms(
             "flight_number":  flight_number,
             "pickup_date":    pickup_date,
             "pickup_time":    pickup_time,
-            "vehicle_make":   "",
-            "vehicle_name":   "",
-            "vehicle_number": "",
+            "vehicle_make":   vehicle_make,
+            "vehicle_name":   vehicle_name,
+            "vehicle_number": vehicle_number,
         }
 
         message = render_template(template_body, variables)
