@@ -72,7 +72,10 @@ app.add_middleware(
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle HTTP exceptions."""
-    logger.warning(f"HTTP {exc.status_code}: {exc.detail} - {request.url}")
+    if exc.status_code == 404:
+        logger.info("HTTP %s: %s - %s", exc.status_code, exc.detail, request.url)
+    else:
+        logger.warning("HTTP %s: %s - %s", exc.status_code, exc.detail, request.url)
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail, "status": exc.status_code},
