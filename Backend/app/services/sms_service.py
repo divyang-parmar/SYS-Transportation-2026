@@ -14,7 +14,7 @@ DEFAULT_SARTHI_ASSIGNED_BODY = (
     "{{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\n"
     "Vehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\n"
     "Contact: {{sarthi_phone}}\n\n"
-    "— Airport Transportation"
+    "-- Airport Transportation"
 )
 
 
@@ -48,7 +48,9 @@ async def send_sms(to: str, body: str) -> bool:
                 auth=(sid, token),
                 data={"From": from_, "To": cleaned, "Body": body},
             )
-            resp.raise_for_status()
+        if not resp.is_success:
+            logger.error("SMS failed to %s: HTTP %s — %s", cleaned, resp.status_code, resp.text)
+            return False
         logger.info("SMS sent to %s", cleaned)
         return True
     except Exception as exc:
