@@ -72,7 +72,7 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
       </tr>
       
       <tr>
-        <td style="padding: 0 16px;">
+        <td style="padding:28px 32px;text-align:center">
           <table class="card" role="presentation" width="100%">
             <tr>
               <td>
