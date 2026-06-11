@@ -117,7 +117,7 @@ app.include_router(flight_groups_router, prefix="/flight-groups")
 app.include_router(assignments_router, prefix="/assignments")
 
 
-@app.get("/", tags=["System"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["System"])
 async def root():
     """Root endpoint with API information."""
     return {
