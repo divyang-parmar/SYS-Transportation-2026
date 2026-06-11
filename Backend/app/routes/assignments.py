@@ -10,6 +10,11 @@ from pydantic import BaseModel
 from app.config import settings
 from app.services.mongodb_service import get_database
 from app.services.sms_service import DEFAULT_SARTHI_ASSIGNED_BODY, render_template, send_sms
+from app.services.email_service import (
+    DEFAULT_SARTHI_ASSIGNED_EMAIL_SUBJECT,
+    DEFAULT_SARTHI_ASSIGNED_EMAIL_BODY,
+    send_assignment_email,
+)
 
 router = APIRouter(tags=["Assignments"])
 logger = logging.getLogger(__name__)
@@ -134,11 +139,12 @@ async def _send_assignment_sms(
     try:
         db = get_database()
 
-        booking, sarthi_doc, template_doc, vehicle_doc = await asyncio.gather(
+        booking, sarthi_doc, template_doc, vehicle_doc, email_template_doc = await asyncio.gather(
             db[settings.bookings_collection].find_one({"_id": booking_oid}),
             db[settings.sarthi_collection].find_one({"_id": sarthi_oid}),
             db[settings.templates_collection].find_one({"_id": "sms-sarthi-assigned"}),
             db[settings.vehicles_collection].find_one({"assigned_driver_id": sarthi_oid}),
+            db[settings.templates_collection].find_one({"_id": "email-sarthi-assigned"}),
         )
 
         if not booking:
@@ -155,9 +161,10 @@ async def _send_assignment_sms(
             or "Passenger"
         )
         passenger_phone = contact.get("phone", "")
+        passenger_email = contact.get("email", "")
 
-        if not passenger_phone:
-            logger.warning("SMS skipped: no phone for booking %s", booking_oid)
+        if not passenger_phone and not passenger_email:
+            logger.warning("SMS/email skipped: no phone or email for booking %s", booking_oid)
             return
 
         sarthi_name  = (sarthi_doc or {}).get("full_name", "")
@@ -194,7 +201,20 @@ async def _send_assignment_sms(
         }
 
         message = render_template(template_body, variables)
-        await send_sms(passenger_phone, message)
+
+        # Try SMS if phone is available
+        sms_ok = False
+        if passenger_phone:
+            sms_ok = await send_sms(passenger_phone, message)
+
+        # Email fallback if SMS failed or no phone
+        if not sms_ok and passenger_email:
+            email_tmpl = email_template_doc or {}
+            email_subject_tpl = email_tmpl.get("subject") or DEFAULT_SARTHI_ASSIGNED_EMAIL_SUBJECT
+            email_body_tpl    = email_tmpl.get("body")    or DEFAULT_SARTHI_ASSIGNED_EMAIL_BODY
+            email_subject = render_template(email_subject_tpl, variables)
+            email_body    = render_template(email_body_tpl, variables)
+            await send_assignment_email(passenger_email, passenger_name, email_subject, email_body)
 
     except Exception as exc:
         logger.error("SMS send failed for booking %s: %s", booking_oid, exc)

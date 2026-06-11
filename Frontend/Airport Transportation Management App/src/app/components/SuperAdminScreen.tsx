@@ -83,6 +83,14 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
     body: `Dear {{passenger_name}}, your Sarthi {{sarthi_name}} will pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\n— Airport Transportation`,
     variables: ["passenger_name", "sarthi_name", "sarthi_phone", "flight_number", "pickup_date", "pickup_time", "vehicle_make", "vehicle_name", "vehicle_number"],
   },
+  {
+    id: "email-sarthi-assigned",
+    channel: "email",
+    name: "Sarthi Assigned",
+    subject: "Your Sarthi is on the way — {{flight_number}}",
+    body: `Dear {{passenger_name}},\n\nYour Sarthi {{sarthi_name}} has been assigned to pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\nSee you soon!\n— Airport Transportation`,
+    variables: ["passenger_name", "sarthi_name", "sarthi_phone", "flight_number", "pickup_date", "pickup_time", "vehicle_make", "vehicle_name", "vehicle_number"],
+  },
 ];
 
 interface Vehicle {

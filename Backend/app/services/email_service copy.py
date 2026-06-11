@@ -23,71 +23,6 @@ ROLE_DESCRIPTIONS = {
     "driver":               "View your assigned passengers and pickup schedule. Pick up and drop off passengers as assigned.",
 }
 
-DEFAULT_SARTHI_ASSIGNED_EMAIL_SUBJECT = "Your Sarthi is on the way — {{flight_number}}"
-DEFAULT_SARTHI_ASSIGNED_EMAIL_BODY = """Dear {{passenger_name}},
-
-Your Sarthi {{sarthi_name}} has been assigned to pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.
-
-Vehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})
-Contact: {{sarthi_phone}}
-
-See you soon!
-— Airport Transportation"""
-
-
-def _build_assignment_html(body_text: str) -> str:
-    body_html = body_text.replace("\n", "<br>")
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pickup Confirmation</title>
-  <style>
-    body {{ margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }}
-    table {{ border-spacing: 0; width: 100%; }}
-    td {{ padding: 0; }}
-    img {{ border: 0; }}
-    .wrapper {{ width: 100%; table-layout: fixed; background-color: #f4f6f9; padding-bottom: 40px; }}
-    .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #f4f6f9; }}
-    .card {{ background-color: #ffffff; border-radius: 12px; padding: 32px 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-top: 28px; }}
-    .title {{ margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center; }}
-    .body-text {{ font-size: 15px; line-height: 24px; color: #334155; white-space: pre-wrap; word-wrap: break-word; }}
-    .footer {{ text-align: center; padding: 24px 20px 0 20px; font-size: 12px; line-height: 18px; color: #94a3b8; }}
-  </style>
-</head>
-<body>
-  <center class="wrapper">
-    <table class="main-table" role="presentation">
-      <tr>
-          <td style="background:#0c71c3;padding:28px 32px;text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
-              <img data-emoji="✈" class="an1 CToWUd" alt="✈" aria-label="✈" draggable="false" src="https://fonts.gstatic.com/s/e/notoemoji/17.0/2708/72.png" loading="lazy" data-bit="iit"> Suharadam Parivar Shibir Transportation Management
-            </div>
-          </td>
-      </tr>
-      <tr>
-        <td style="padding:28px 32px;text-align:center">
-          <table class="card" role="presentation" width="100%">
-            <tr>
-              <td>
-                <h1 class="title">Pickup Confirmation</h1>
-                <p class="body-text">{body_html}</p>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-      <tr>
-        <td class="footer">
-          You have received this email because a Sarthi has been assigned to your transportation.
-        </td>
-      </tr>
-    </table>
-  </center>
-</body>
-</html>"""
-
 
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
@@ -184,46 +119,6 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
 </html>"""
 
 
-async def _send_assignment_via_sendgrid(to_email: str, to_name: str, subject: str, body_text: str) -> bool:
-    payload = {
-        "personalizations": [{"to": [{"email": to_email, "name": to_name}]}],
-        "from": {"email": settings.sendgrid_from_email, "name": settings.sendgrid_from_name},
-        "subject": subject,
-        "content": [
-            {"type": "text/plain", "value": body_text},
-            {"type": "text/html",  "value": _build_assignment_html(body_text)},
-        ],
-    }
-    async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(
-            "https://api.sendgrid.com/v3/mail/send",
-            headers={"Authorization": f"Bearer {settings.sendgrid_api_key}"},
-            json=payload,
-        )
-    if resp.status_code == 202:
-        logger.info("Assignment email sent via SendGrid to %s", to_email)
-        return True
-    logger.error("SendGrid error %s for %s: %s", resp.status_code, to_email, resp.text)
-    return False
-
-
-def _send_assignment_via_smtp(to_email: str, to_name: str, subject: str, body_text: str) -> None:
-    from_addr = formataddr((settings.smtp_from_name, settings.smtp_user))
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = from_addr
-    msg["To"]      = to_email
-
-    msg.attach(MIMEText(body_text, "plain"))
-    msg.attach(MIMEText(_build_assignment_html(body_text), "html"))
-
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as server:
-        server.ehlo()
-        server.starttls()
-        server.login(settings.smtp_user, settings.smtp_password)
-        server.sendmail(settings.smtp_user, to_email, msg.as_string())
-
-
 async def _send_via_sendgrid(name: str, to_email: str, role: str, subject: str, body_text: str, app_url: str = "") -> bool:
     payload = {
         "personalizations": [{"to": [{"email": to_email, "name": name}]}],
@@ -285,28 +180,4 @@ async def send_invite_email(name: str, email: str, role: str, subject: str, body
             return False
 
     logger.warning("No email provider configured — skipping invite email for %s", email)
-    return False
-
-
-async def send_assignment_email(to_email: str, to_name: str, subject: str, body_text: str) -> bool:
-    # Prefer SendGrid (HTTPS/443, works on Render free tier)
-    if settings.sendgrid_api_key and settings.sendgrid_from_email:
-        try:
-            return await _send_assignment_via_sendgrid(to_email, to_name, subject, body_text)
-        except Exception as exc:
-            logger.error("Failed to send assignment email via SendGrid to %s: %s", to_email, exc)
-            return False
-
-    # Fall back to SMTP (works locally, blocked on Render free tier)
-    if settings.smtp_user and settings.smtp_password:
-        loop = asyncio.get_event_loop()
-        try:
-            await loop.run_in_executor(None, _send_assignment_via_smtp, to_email, to_name, subject, body_text)
-            logger.info("Assignment email sent via SMTP to %s", to_email)
-            return True
-        except Exception as exc:
-            logger.error("Failed to send assignment email via SMTP to %s: %s", to_email, exc)
-            return False
-
-    logger.warning("No email provider configured — skipping assignment email for %s", to_email)
     return False
