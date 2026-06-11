@@ -332,6 +332,7 @@ export function TransportScreen({ onBack, adminName }: Props) {
                               group={group}
                               passengers={getPassengersForGroup(group.id, currentPassengers)}
                               sarthis={sarthis}
+                              vehicles={vehicles}
                               assignments={currentAssignments}
                               onAssign={(bookingId, sarthiId) =>
                                 handleAssignSarthi(bookingId, sarthiId, activeTab as "arrival" | "departure", group.id)

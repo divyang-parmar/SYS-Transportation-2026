@@ -26,10 +26,17 @@ export interface Sarthi {
   phone: string;
 }
 
+interface Vehicle {
+  id: string;
+  capacity: number;
+  assignedDriverId?: string;
+}
+
 interface Props {
   group: FlightGroup;
   passengers: Passenger[];
   sarthis: Sarthi[];
+  vehicles?: Vehicle[];
   assignments: Record<string, string>;
   onAssign: (passengerId: string, sarthiId: string) => void;
   onUnassign: (passengerId: string) => void;
@@ -58,7 +65,7 @@ function formatTimeDiff(scheduled: string, actual: string): string | null {
   return diff > 0 ? `+${label}` : `-${label}`;
 }
 
-export function FlightGroupCard({ group, passengers, sarthis, assignments, onAssign, onUnassign }: Props) {
+export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignments, onAssign, onUnassign }: Props) {
   const [expanded, setExpanded] = useState(true);
 
   const totalPassengers = passengers.reduce((sum, p) => sum + p.passengerCount, 0);
@@ -264,11 +271,14 @@ function PassengerRow({
                 style={{ fontSize: "0.8rem" }}
               >
                 <option value="" disabled>Assign Sarthi…</option>
-                {sarthis.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}{s.phone ? ` · ${s.phone}` : ""}
-                  </option>
-                ))}
+                {sarthis.map((s) => {
+                  const vehicle = vehicles?.find((v) => v.assignedDriverId === s.id);
+                  return (
+                    <option key={s.id} value={s.id}>
+                      {s.name}{vehicle ? ` · ${vehicle.capacity}-seater` : ""}
+                    </option>
+                  );
+                })}
               </select>
             )}
           </div>
