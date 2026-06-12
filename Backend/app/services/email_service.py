@@ -92,15 +92,11 @@ def _build_assignment_html(body_text: str) -> str:
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
     role_desc = ROLE_DESCRIPTIONS.get(role, "")
-    body_html = body_text.replace("\n", "<br>") if body_text else ""
     role_desc_html = (
         f'<p style="margin:0;font-size:14px;line-height:20px;color:#6b7280;">{role_desc}</p>'
         if role_desc
         else ""
     )
-    person_icon = "https://img.icons8.com/fluency-systems-filled/48/2563eb/user.png"
-    email_icon = "https://img.icons8.com/fluency-systems-filled/48/7c3aed/new-post.png"
-    header_icon = "https://img.icons8.com/fluency-systems-filled/64/ffffff/airplane-take-off.png"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -111,7 +107,6 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
   <style>
     body {{ margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }}
     table {{ border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }}
-    img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }}
     a {{ text-decoration: none; }}
     .mobile-padding td {{ padding: 20px !important; }}
     .mobile-heading {{ font-size: 24px !important; line-height: 32px !important; }}
@@ -137,7 +132,7 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#2563eb;background-image:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;">
                   <tr>
                     <td align="center" style="padding:28px 24px;">
-                      <img src="{header_icon}" width="64" height="64" alt="Plane" style="display:block;margin:0 auto 16px auto;" />
+                      <div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background-color:rgba(255,255,255,0.15);font-size:34px;line-height:34px;color:#ffffff;margin:0 auto 16px auto;">✈</div>
                       <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 12px auto;background-color:#ffffff;border-radius:999px;">
                         <tr>
                           <td style="padding:6px 14px;font-size:12px;line-height:16px;color:#2563eb;font-weight:700;">🛡 Secure Invitation</td>
@@ -156,16 +151,13 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                     <td class="stacked-pad" style="padding:32px;">
                       <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#0f172a;">Hi <strong style="font-weight:700;color:#0f172a;">{name}</strong>,</p>
                       <p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#334155;">You've been invited to the <strong style="color:#0f172a;">SPS Transportation Management App</strong>.</p>
-                      {f'<p style="margin:0 0 24px 0;font-size:15px;line-height:24px;color:#334155;">{body_html}</p>' if body_html else ''}
 
                       <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 18px 0;">
                         <tr>
                           <td width="64" valign="top" style="padding-right:16px;">
                             <table width="48" height="48" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#dbeafe;border-radius:12px;">
                               <tr>
-                                <td align="center" valign="middle" style="padding:12px;">
-                                  <img src="{person_icon}" width="24" height="24" alt="Role" style="display:block;" />
-                                </td>
+                                <td align="center" valign="middle" style="padding:12px;font-size:20px;line-height:20px;">👤</td>
                               </tr>
                             </table>
                           </td>
@@ -182,9 +174,7 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                           <td width="64" valign="top" style="padding-right:16px;">
                             <table width="48" height="48" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#ede9fe;border-radius:12px;">
                               <tr>
-                                <td align="center" valign="middle" style="padding:12px;">
-                                  <img src="{email_icon}" width="24" height="24" alt="Email" style="display:block;" />
-                                </td>
+                                <td align="center" valign="middle" style="padding:12px;font-size:20px;line-height:20px;">✉</td>
                               </tr>
                             </table>
                           </td>
