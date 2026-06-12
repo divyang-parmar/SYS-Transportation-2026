@@ -132,7 +132,11 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                 <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#2563eb;background-image:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;">
                   <tr>
                     <td align="center" style="padding:28px 24px;">
-                      <div style="display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border-radius:50%;background-color:rgba(255,255,255,0.15);font-size:34px;line-height:34px;color:#ffffff;margin:0 auto 16px auto;">✈</div>
+                      <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 16px auto;">
+                        <tr>
+                          <td align="center" valign="middle" style="width:64px;height:64px;border-radius:50%;background-color:rgba(255,255,255,0.15);padding:12px;font-size:34px;line-height:34px;color:#ffffff;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;text-align:center;vertical-align:middle;">✈</td>
+                        </tr>
+                      </table>
                       <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 12px auto;background-color:#ffffff;border-radius:999px;">
                         <tr>
                           <td style="padding:6px 14px;font-size:12px;line-height:16px;color:#2563eb;font-weight:700;">🛡 Secure Invitation</td>
@@ -150,7 +154,7 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                   <tr>
                     <td class="stacked-pad" style="padding:32px;">
                       <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#0f172a;">Hi <strong style="font-weight:700;color:#0f172a;">{name}</strong>,</p>
-                      <p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#334155;">You've been invited to the <strong style="color:#0f172a;">SPS Transportation Management App</strong>.</p>
+                      <p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#334155;">Welcome to SPS 2026! Access Your <strong style="color:#0f172a;">SPS Transportation Management App</strong>.</p>
 
                       <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 18px 0;">
                         <tr>

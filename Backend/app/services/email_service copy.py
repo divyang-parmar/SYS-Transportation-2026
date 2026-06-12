@@ -83,7 +83,7 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
                 </p>
 
                 <p class="greeting">
-                  You've been invited to the SPS Transportation Management App 
+                  Welcome to SPS 2026! Access Your Transportation Management App 
                 </p>
 
                 <div class="info-box">
