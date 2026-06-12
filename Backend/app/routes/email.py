@@ -10,10 +10,10 @@ from app.services.mongodb_service import get_database
 router = APIRouter(tags=["Email"])
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SUBJECT = "You're invited to Airport Transportation Management App"
+_DEFAULT_SUBJECT = "You're invited to SPS Transportation App"
 _DEFAULT_BODY = (
     "Hi {{name}},\n\n"
-    "You've been invited to the Airport Transportation Management App as {{role}}.\n\n"
+    "You've been invited to the SPS Transportation App as {{role}}.\n\n"
     "Login with your email: {{email}}\n\n"
     "Open the app at: {{app_url}}\n\n"
     "This invitation was sent by a Super Admin. If you weren't expecting this, you can safely ignore this email."

@@ -14,7 +14,7 @@ DEFAULT_SARTHI_ASSIGNED_BODY = (
     "{{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\n"
     "Vehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\n"
     "Contact: {{sarthi_phone}}\n\n"
-    "-- Airport Transportation"
+    "- SPS Airport Transportation Team"
 )
 
 

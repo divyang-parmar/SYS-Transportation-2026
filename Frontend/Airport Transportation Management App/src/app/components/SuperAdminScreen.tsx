@@ -50,8 +50,8 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
     id: "email-invite",
     channel: "email",
     name: "User Invitation",
-    subject: "You're invited to Airport Transportation Management App",
-    body: `Hi {{name}},\n\nYou've been invited to the Airport Transportation Management App as {{role}}.\n\nLogin with your email: {{email}}\n\nOpen the app at: {{app_url}}\n\nThis invitation was sent by a Super Admin. If you weren't expecting this, you can safely ignore this email.`,
+    subject: "You're invited to SPS Airport Transportation Management App",
+    body: `Hi {{name}},\n\nYou've been invited to the SPS Airport Transportation Management App as {{role}}.\n\nLogin with your email: {{email}}\n\nOpen the app at: {{app_url}}\n\nThis invitation was sent by a Super Admin. If you weren't expecting this, you can safely ignore this email.`,
     variables: ["name", "email", "role", "app_url"],
   },
   {
@@ -59,28 +59,28 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
     channel: "email",
     name: "Flight Assignment",
     subject: "New flight assignment — {{flight_number}}",
-    body: `Hi {{name}},\n\nYou have been assigned to flight {{flight_number}} arriving at {{arrival_time}}.\n\nPassengers: {{passenger_count}}\nPickup Location: {{pickup_location}}\n\nPlease confirm your availability in the app.\n\n— Airport Transportation Team`,
+    body: `Hi {{name}},\n\nYou have been assigned to flight {{flight_number}} arriving at {{arrival_time}}.\n\nPassengers: {{passenger_count}}\nPickup Location: {{pickup_location}}\n\nPlease confirm your availability in the app.\n\n— SPS Airport Transportation Team`,
     variables: ["name", "flight_number", "arrival_time", "passenger_count", "pickup_location"],
   },
   {
     id: "sms-invite",
     channel: "sms",
     name: "User Invitation",
-    body: `Hi {{name}}, you've been added to Airport Transportation App as {{role}}. Login with {{email}}.`,
+    body: `Hi {{name}}, you've been added to SPS Transportation Team as {{role}}. Login with {{email}}.`,
     variables: ["name", "email", "role"],
   },
   {
     id: "sms-pickup-reminder",
     channel: "sms",
     name: "Pickup Reminder",
-    body: `Reminder: You have a pickup at {{pickup_time}} for flight {{flight_number}}. {{passenger_count}} passengers. — Airport Transport`,
+    body: `Reminder: You have a pickup at {{pickup_time}} for flight {{flight_number}}. {{passenger_count}} passengers. — SPS Airport Transportation Team`,
     variables: ["pickup_time", "flight_number", "passenger_count"],
   },
   {
     id: "sms-sarthi-assigned",
     channel: "sms",
     name: "Sarthi Assigned",
-    body: `Dear {{passenger_name}}, your Sarthi {{sarthi_name}} will pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\n— Airport Transportation`,
+    body: `Dear {{passenger_name}}, your Sarthi {{sarthi_name}} will pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\n— SPS Airport Transportation Team`,
     variables: ["passenger_name", "sarthi_name", "sarthi_phone", "flight_number", "pickup_date", "pickup_time", "vehicle_make", "vehicle_name", "vehicle_number"],
   },
   {
@@ -88,7 +88,7 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
     channel: "email",
     name: "Sarthi Assigned",
     subject: "Your Sarthi is on the way — {{flight_number}}",
-    body: `Dear {{passenger_name}},\n\nYour Sarthi {{sarthi_name}} has been assigned to pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\nSee you soon!\n— Airport Transportation`,
+    body: `Dear {{passenger_name}},\n\nYour Sarthi {{sarthi_name}} has been assigned to pick you up for flight {{flight_number}} on {{pickup_date}} at {{pickup_time}}.\n\nVehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})\nContact: {{sarthi_phone}}\n\nSee you soon!\n— SPS Airport Transportation Team`,
     variables: ["passenger_name", "sarthi_name", "sarthi_phone", "flight_number", "pickup_date", "pickup_time", "vehicle_make", "vehicle_name", "vehicle_number"],
   },
 ];
@@ -173,9 +173,9 @@ export function SuperAdminScreen({ onBack }: Props) {
   useEffect(() => {
     if (!emailPreview) { setPreviewContent(null); return; }
 
-    const DEFAULT_SUBJECT = "You're invited to Airport Transportation Management App";
+    const DEFAULT_SUBJECT = "You're invited to SPS Transportation App";
     const DEFAULT_BODY =
-      "Hi {{name}},\n\nYou've been invited to the Airport Transportation Management App as {{role}}.\n\nLogin with your email: {{email}}\n\nOpen the app at: {{app_url}}\n\nThis invitation was sent by a Super Admin. If you weren't expecting this, you can safely ignore this email.";
+      "Hi {{name}},\n\nYou've been invited to the SPS Transportation App as {{role}}.\n\nLogin with your email: {{email}}\n\nOpen the app at: {{app_url}}\n\nThis invitation was sent by a Super Admin. If you weren't expecting this, you can safely ignore this email.";
 
     const vars: Record<string, string> = {
       name:    emailPreview.name,
@@ -630,7 +630,7 @@ export function SuperAdminScreen({ onBack }: Props) {
               <div className="flex gap-2" style={{ fontSize: "13px" }}>
                 <span className="text-muted-foreground w-14 flex-shrink-0">Subject:</span>
                 <span style={{ color: "#494D52", fontWeight: 500 }}>
-                  {previewContent?.subject ?? "You're invited to Airport Transportation Management App"}
+                  {previewContent?.subject ?? "You're invited to SPS Transportation App"}
                 </span>
               </div>
             </div>

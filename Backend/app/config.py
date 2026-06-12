@@ -38,14 +38,14 @@ class Settings(BaseSettings):
     # Email — SendGrid REST API (HTTPS/443, works on Render free tier)
     sendgrid_api_key: str = Field(default="", alias="SENDGRID_API_KEY")
     sendgrid_from_email: str = Field(default="", alias="SENDGRID_FROM_EMAIL")
-    sendgrid_from_name: str = Field(default="Airport Transportation App", alias="SENDGRID_FROM_NAME")
+    sendgrid_from_name: str = Field(default="SPS Transportation Team", alias="SENDGRID_FROM_NAME")
 
     # Email / SMTP Configuration (kept for local dev fallback)
     smtp_host: str = Field(default="smtp.gmail.com", alias="SMTP_HOST")
     smtp_port: int = Field(default=587, alias="SMTP_PORT")
     smtp_user: str = Field(default="", alias="SMTP_USER")
     smtp_password: str = Field(default="", alias="SMTP_PASSWORD")
-    smtp_from_name: str = Field(default="Airport Transportation App", alias="SMTP_FROM_NAME")
+    smtp_from_name: str = Field(default="SPS Transportation Team", alias="SMTP_FROM_NAME")
 
     # JotForm Configuration
     jotform_api_key: str = Field(..., alias="JOTFORM_API_KEY")

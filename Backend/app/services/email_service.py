@@ -32,7 +32,7 @@ Vehicle: {{vehicle_make}} {{vehicle_name}} ({{vehicle_number}})
 Contact: {{sarthi_phone}}
 
 See you soon!
-— Airport Transportation"""
+— SPS Airport Transportation Team"""
 
 
 def _build_assignment_html(body_text: str) -> str:
