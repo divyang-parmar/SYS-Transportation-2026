@@ -60,11 +60,25 @@ def _build_assignment_html(body_text: str) -> str:
   <center class="wrapper">
     <table class="main-table" role="presentation">
       <tr>
-          <td style="background:#0c71c3;padding:28px 32px;text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
-              ✈ Suharadam Parivar Shibir Transportation Management
-            </div>
-          </td>
+        <td>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#2563eb;background-image:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;">
+            <tr>
+              <td align="center" style="padding:28px 24px;">
+                <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 16px auto;">
+                  <tr>
+                    <td align="center" valign="middle" style="width:64px;height:64px;border-radius:50%;background-color:rgba(255,255,255,0.15);padding:12px;font-size:34px;line-height:34px;color:#ffffff;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;text-align:center;vertical-align:middle;">✈</td>
+                  </tr>
+                </table>
+                <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 12px auto;background-color:#ffffff;border-radius:999px;">
+                  <tr>
+                    <td style="padding:6px 14px;font-size:12px;line-height:16px;color:#ffffff;font-weight:700;">Pickup Notification</td>
+                  </tr>
+                </table>
+                <h1 style="margin:0;font-size:20px;line-height:24px;font-weight:700;color:#ffffff;">Pickup Confirmation</h1>
+              </td>
+            </tr>
+          </table>
+        </td>
       </tr>
       <tr>
         <td style="padding:28px 32px">
