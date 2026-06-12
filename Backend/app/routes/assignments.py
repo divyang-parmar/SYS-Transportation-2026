@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 
 from bson import ObjectId
@@ -213,8 +214,11 @@ async def _send_assignment_sms(
             email_subject_tpl = email_tmpl.get("subject") or DEFAULT_SARTHI_ASSIGNED_EMAIL_SUBJECT
             email_body_tpl    = email_tmpl.get("body")    or DEFAULT_SARTHI_ASSIGNED_EMAIL_BODY
             email_subject = render_template(email_subject_tpl, variables)
-            email_body    = render_template(email_body_tpl, variables)
-            await send_assignment_email(passenger_email, passenger_name, email_subject, email_body, variables)
+            email_body_tpl_processed = email_body_tpl
+            if not any([vehicle_make, vehicle_name, vehicle_number]):
+                email_body_tpl_processed = re.sub(r'\nVehicle:.*', '', email_body_tpl)
+            email_body    = render_template(email_body_tpl_processed, variables)
+            await send_assignment_email(passenger_email, passenger_name, email_subject, email_body)
 
     except Exception as exc:
         logger.error("SMS send failed for booking %s: %s", booking_oid, exc)
