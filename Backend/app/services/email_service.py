@@ -62,7 +62,7 @@ def _build_assignment_html(body_text: str) -> str:
       <tr>
           <td style="background:#0c71c3;padding:28px 32px;text-align:center">
             <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
-              <img data-emoji="✈" class="an1 CToWUd" alt="✈" aria-label="✈" draggable="false" src="https://fonts.gstatic.com/s/e/notoemoji/17.0/2708/72.png" loading="lazy" data-bit="iit"> Suharadam Parivar Shibir Transportation Management
+              ✈ Suharadam Parivar Shibir Transportation Management
             </div>
           </td>
       </tr>
@@ -92,7 +92,6 @@ def _build_assignment_html(body_text: str) -> str:
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
     role_desc = ROLE_DESCRIPTIONS.get(role, "")
-    body_html = body_text.replace("\n", "<br>")
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,86 +99,85 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPS Access Invitation</title>
   <style>
-    body {{ margin: 0; padding: 0; background-color: #f4f6f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }}
+    body {{ margin: 0; padding: 0; background: linear-gradient(135deg, #0c71c3 0%, #0856a8 100%); min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }}
     table {{ border-spacing: 0; width: 100%; }}
     td {{ padding: 0; }}
-    img {{ border: 0; }}
-    .wrapper {{ width: 100%; table-layout: fixed; background-color: #f4f6f9; padding-bottom: 40px; }}
-    .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #f4f6f9; }}
-    .header {{ padding: 32px 20px 24px 20px; text-align: center; }}
-    .header h2 {{ margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #1e3a8a; }}
-    .header p {{ margin: 4px 0 0 0; font-size: 13px; color: #64748b; font-weight: 500; }}
-    .card {{ background-color: #ffffff; border-radius: 12px; padding: 32px 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }}
-    .title {{ margin: 0 0 20px 0; font-size: 20px; font-weight: 700; color: #0f172a; text-align: center; }}
-    .greeting {{ font-size: 15px; line-height: 24px; color: #334155; margin: 0 0 24px 0; }}
-    .info-box {{ background-color: #f8fafc; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid #f1f5f9; }}
-    .info-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 4px; }}
-    .info-value {{ font-size: 15px; font-weight: 600; color: #1e293b; }}
-    .role-badge {{ display: inline-block; background-color: #eff6ff; color: #2563eb; padding: 4px 12px; border-radius: 6px; font-size: 14px; font-weight: 700; margin-top: 2px; }}
-    .btn-container {{ text-align: center; margin: 28px 0 12px 0; }}
-    .btn {{ background-color: #2563eb; color: #ffffff !important; display: inline-block; padding: 12px 32px; font-size: 15px; font-weight: 600; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }}
-    .footer {{ text-align: center; padding: 24px 20px 0 20px; font-size: 12px; line-height: 18px; color: #94a3b8; }}
+    .wrapper {{ width: 100%; table-layout: fixed; padding: 40px 20px; }}
+    .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; }}
+    .header-section {{ text-align: center; padding: 40px 32px; color: #ffffff; }}
+    .icon-box {{ display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; margin-bottom: 24px; font-size: 40px; }}
+    .header-title {{ font-size: 28px; font-weight: 700; margin: 0 0 8px 0; line-height: 1.2; }}
+    .header-subtitle {{ font-size: 20px; font-weight: 600; margin: 0 0 20px 0; opacity: 0.95; }}
+    .header-badge {{ display: inline-block; background-color: rgba(255, 255, 255, 0.25); color: #ffffff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; }}
+    .card {{ background-color: #ffffff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); margin-top: -20px; position: relative; z-index: 1; }}
+    .greeting {{ font-size: 16px; line-height: 24px; color: #1f2937; margin: 0 0 16px 0; }}
+    .greeting-name {{ font-weight: 700; color: #0f172a; }}
+    .greeting-intro {{ font-size: 16px; line-height: 24px; color: #1f2937; margin: 0 0 28px 0; }}
+    .intro-app {{ font-weight: 700; color: #0f172a; }}
+    .info-row {{ display: table; width: 100%; margin-bottom: 20px; }}
+    .info-icon-cell {{ display: table-cell; vertical-align: top; padding-right: 16px; width: 50px; }}
+    .info-icon {{ width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
+    .icon-person {{ background-color: #dbeafe; }}
+    .icon-envelope {{ background-color: #f3f4f6; }}
+    .info-content {{ display: table-cell; vertical-align: top; }}
+    .info-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 6px; }}
+    .info-value {{ font-size: 16px; font-weight: 700; color: #0c71c3; }}
+    .info-desc {{ font-size: 13px; color: #6b7280; line-height: 1.5; margin-top: 6px; }}
+    .btn-container {{ text-align: center; margin: 32px 0 0 0; }}
+    .btn {{ background: linear-gradient(135deg, #0c71c3 0%, #0856a8 100%); color: #ffffff !important; display: inline-block; padding: 14px 40px; font-size: 16px; font-weight: 700; text-decoration: none; border-radius: 12px; width: 100%; box-sizing: border-box; text-align: center; }}
+    .footer-section {{ background-color: #f9fafb; border-radius: 12px; padding: 20px; margin-top: 24px; text-align: center; }}
+    .footer-text {{ font-size: 12px; line-height: 18px; color: #9ca3af; margin: 0; }}
   </style>
 </head>
 <body>
-  <center class="wrapper">
+  <div class="wrapper">
     <table class="main-table" role="presentation">
-
       <tr>
-          <td style="background:#0c71c3;padding:28px 32px;text-align:center">
-            <div style="font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.3px">
-              <img data-emoji="✈" class="an1 CToWUd" alt="✈" aria-label="✈" draggable="false" src="https://fonts.gstatic.com/s/e/notoemoji/17.0/2708/72.png" loading="lazy" data-bit="iit"> Suharadam Parivar Shibir Transportation Management
+        <td>
+          <div class="header-section">
+            <div class="icon-box">✈</div>
+            <div class="header-title">Suharadam Parivar Shibir</div>
+            <div class="header-subtitle">Transportation Management</div>
+            <div class="header-badge">🛡 Secure Access Invitation</div>
+          </div>
+
+          <div class="card">
+            <p class="greeting">Hi <span class="greeting-name">{name}</span>,</p>
+            <p class="greeting-intro">You've been invited to the <span class="intro-app">SPS Transportation Management App</span></p>
+
+            <div class="info-row">
+              <div class="info-icon-cell">
+                <div class="info-icon icon-person">👤</div>
+              </div>
+              <div class="info-content">
+                <div class="info-label">Assigned Role</div>
+                <div class="info-value">{role_label}</div>
+                {f'<div class="info-desc">{role_desc}</div>' if role_desc else ''}
+              </div>
             </div>
-            <div style="font-size:13px;color:rgba(255,255,255,0.8);margin-top:4px">
-              Secure Access Invitation
+
+            <div class="info-row">
+              <div class="info-icon-cell">
+                <div class="info-icon icon-envelope">✉</div>
+              </div>
+              <div class="info-content">
+                <div class="info-label">Authorized Login Email</div>
+                <div class="info-value">{email}</div>
+              </div>
             </div>
-          </td>
-      </tr>
-      
-      <tr>
-        <td style="padding:28px 32px;text-align:center">
-          <table class="card" role="presentation" width="100%">
-            <tr>
-              <td>
-                <h1 class="title">Secure Access Invitation</h1>
 
-                <p class="greeting">
-                  Hi {name},
-                </p>
+            <div class="btn-container">
+              <a href="{app_url}" class="btn" target="_blank">Go to Application →</a>
+            </div>
 
-                <p class="greeting">
-                  You've been invited to the SPS Transportation Management App 
-                </p>
-
-                <div class="info-box">
-                  <div class="info-label">Assigned Role</div>
-                  <div class="role-badge">{role_label}</div>
-                  {f'<div style="font-size:12px;color:#64748b;margin-top:8px;">{role_desc}</div>' if role_desc else ''}
-                </div>
-
-                <div class="info-box">
-                  <div class="info-label">Authorized Login Email</div>
-                  <div class="info-value">{email}</div>
-                </div>
-
-                <div class="btn-container">
-                  <a href="{app_url}" class="btn" target="_blank">Go to Application &rarr;</a>
-                </div>
-              </td>
-            </tr>
-          </table>
+            <div class="footer-section">
+              <p class="footer-text">This invitation was generated by an Admin.<br>If you were not expecting this access request, you can safely ignore this email.</p>
+            </div>
+          </div>
         </td>
       </tr>
-
-      <tr>
-        <td class="footer">
-          This invitation was generated by an Admin.<br>
-          If you were not expecting this access request, you can safely ignore this email.
-        </td>
-      </tr>
-
     </table>
-  </center>
+  </div>
 </body>
 </html>"""
 
