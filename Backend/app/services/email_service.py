@@ -92,6 +92,16 @@ def _build_assignment_html(body_text: str) -> str:
 def _build_html(name: str, email: str, role: str, body_text: str, app_url: str = "") -> str:
     role_label = ROLE_LABELS.get(role, role)
     role_desc = ROLE_DESCRIPTIONS.get(role, "")
+    body_html = body_text.replace("\n", "<br>") if body_text else ""
+    role_desc_html = (
+        f'<p style="margin:0;font-size:14px;line-height:20px;color:#6b7280;">{role_desc}</p>'
+        if role_desc
+        else ""
+    )
+    person_icon = "https://img.icons8.com/fluency-systems-filled/48/2563eb/user.png"
+    email_icon = "https://img.icons8.com/fluency-systems-filled/48/7c3aed/new-post.png"
+    header_icon = "https://img.icons8.com/fluency-systems-filled/64/ffffff/airplane-take-off.png"
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -99,85 +109,122 @@ def _build_html(name: str, email: str, role: str, body_text: str, app_url: str =
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SPS Access Invitation</title>
   <style>
-    body {{ margin: 0; padding: 0; background: linear-gradient(135deg, #0c71c3 0%, #0856a8 100%); min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }}
-    table {{ border-spacing: 0; width: 100%; }}
-    td {{ padding: 0; }}
-    .wrapper {{ width: 100%; table-layout: fixed; padding: 40px 20px; }}
-    .main-table {{ width: 100%; max-width: 500px; margin: 0 auto; }}
-    .header-section {{ text-align: center; padding: 40px 32px; color: #ffffff; }}
-    .icon-box {{ display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background-color: rgba(255, 255, 255, 0.2); border-radius: 20px; margin-bottom: 24px; font-size: 40px; }}
-    .header-title {{ font-size: 28px; font-weight: 700; margin: 0 0 8px 0; line-height: 1.2; }}
-    .header-subtitle {{ font-size: 20px; font-weight: 600; margin: 0 0 20px 0; opacity: 0.95; }}
-    .header-badge {{ display: inline-block; background-color: rgba(255, 255, 255, 0.25); color: #ffffff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; }}
-    .card {{ background-color: #ffffff; border-radius: 16px; padding: 40px 32px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1); margin-top: -20px; position: relative; z-index: 1; }}
-    .greeting {{ font-size: 16px; line-height: 24px; color: #1f2937; margin: 0 0 16px 0; }}
-    .greeting-name {{ font-weight: 700; color: #0f172a; }}
-    .greeting-intro {{ font-size: 16px; line-height: 24px; color: #1f2937; margin: 0 0 28px 0; }}
-    .intro-app {{ font-weight: 700; color: #0f172a; }}
-    .info-row {{ display: table; width: 100%; margin-bottom: 20px; }}
-    .info-icon-cell {{ display: table-cell; vertical-align: top; padding-right: 16px; width: 50px; }}
-    .info-icon {{ width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; }}
-    .icon-person {{ background-color: #dbeafe; }}
-    .icon-envelope {{ background-color: #f3f4f6; }}
-    .info-content {{ display: table-cell; vertical-align: top; }}
-    .info-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 6px; }}
-    .info-value {{ font-size: 16px; font-weight: 700; color: #0c71c3; }}
-    .info-desc {{ font-size: 13px; color: #6b7280; line-height: 1.5; margin-top: 6px; }}
-    .btn-container {{ text-align: center; margin: 32px 0 0 0; }}
-    .btn {{ background: linear-gradient(135deg, #0c71c3 0%, #0856a8 100%); color: #ffffff !important; display: inline-block; padding: 14px 40px; font-size: 16px; font-weight: 700; text-decoration: none; border-radius: 12px; width: 100%; box-sizing: border-box; text-align: center; }}
-    .footer-section {{ background-color: #f9fafb; border-radius: 12px; padding: 20px; margin-top: 24px; text-align: center; }}
-    .footer-text {{ font-size: 12px; line-height: 18px; color: #9ca3af; margin: 0; }}
+    body {{ margin: 0; padding: 0; background-color: #f4f5f7; font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }}
+    table {{ border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }}
+    img {{ border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }}
+    a {{ text-decoration: none; }}
+    .mobile-padding td {{ padding: 20px !important; }}
+    .mobile-heading {{ font-size: 24px !important; line-height: 32px !important; }}
+    .mobile-body {{ font-size: 15px !important; line-height: 24px !important; }}
+    .button-link {{ width: auto !important; }}
+    @media screen and (max-width: 600px) {{
+      .wrapper-table {{ width: 100% !important; min-width: 100% !important; }}
+      .stacked-pad {{ padding: 20px !important; }}
+      .mobile-heading {{ font-size: 24px !important; line-height: 32px !important; }}
+      .mobile-body {{ font-size: 15px !important; line-height: 24px !important; }}
+      .button-link {{ display: block !important; }}
+    }}
   </style>
 </head>
-<body>
-  <div class="wrapper">
-    <table class="main-table" role="presentation">
+<body style="margin:0;padding:0;background-color:#f4f5f7;">
+  <center style="width:100%;background-color:#f4f5f7;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#f4f5f7;">
       <tr>
-        <td>
-          <div class="header-section">
-            <div class="icon-box">✈</div>
-            <div class="header-title">Suharadam Parivar Shibir</div>
-            <div class="header-subtitle">Transportation Management</div>
-            <div class="header-badge">🛡 Secure Access Invitation</div>
-          </div>
+        <td align="center" style="padding:20px 0;">
+          <table class="wrapper-table" width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="width:600px;max-width:600px;">
+            <tr>
+              <td>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#2563eb;background-image:linear-gradient(135deg,#2563eb 0%,#1d4ed8 100%);border-radius:16px 16px 0 0;">
+                  <tr>
+                    <td align="center" style="padding:28px 24px;">
+                      <img src="{header_icon}" width="64" height="64" alt="Plane" style="display:block;margin:0 auto 16px auto;" />
+                      <table align="center" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 auto 12px auto;background-color:#ffffff;border-radius:999px;">
+                        <tr>
+                          <td style="padding:6px 14px;font-size:12px;line-height:16px;color:#2563eb;font-weight:700;">🛡 Secure Invitation</td>
+                        </tr>
+                      </table>
+                      <h1 style="margin:0;font-size:32px;line-height:38px;font-weight:700;color:#ffffff;">You're Invited</h1>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 24px 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,0.08);">
+                  <tr>
+                    <td class="stacked-pad" style="padding:32px;">
+                      <p style="margin:0 0 16px 0;font-size:16px;line-height:24px;color:#0f172a;">Hi <strong style="font-weight:700;color:#0f172a;">{name}</strong>,</p>
+                      <p style="margin:0 0 20px 0;font-size:16px;line-height:24px;color:#334155;">You've been invited to the <strong style="color:#0f172a;">SPS Transportation Management App</strong>.</p>
+                      {f'<p style="margin:0 0 24px 0;font-size:15px;line-height:24px;color:#334155;">{body_html}</p>' if body_html else ''}
 
-          <div class="card">
-            <p class="greeting">Hi <span class="greeting-name">{name}</span>,</p>
-            <p class="greeting-intro">You've been invited to the <span class="intro-app">SPS Transportation Management App</span></p>
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 18px 0;">
+                        <tr>
+                          <td width="64" valign="top" style="padding-right:16px;">
+                            <table width="48" height="48" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#dbeafe;border-radius:12px;">
+                              <tr>
+                                <td align="center" valign="middle" style="padding:12px;">
+                                  <img src="{person_icon}" width="24" height="24" alt="Role" style="display:block;" />
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          <td valign="top" style="padding:0;">
+                            <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;font-weight:700;">Assigned Role</p>
+                            <p style="margin:0 0 6px 0;font-size:16px;font-weight:600;color:#1d4ed8;">{role_label}</p>
+                            {role_desc_html}
+                          </td>
+                        </tr>
+                      </table>
 
-            <div class="info-row">
-              <div class="info-icon-cell">
-                <div class="info-icon icon-person">👤</div>
-              </div>
-              <div class="info-content">
-                <div class="info-label">Assigned Role</div>
-                <div class="info-value">{role_label}</div>
-                {f'<div class="info-desc">{role_desc}</div>' if role_desc else ''}
-              </div>
-            </div>
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:0 0 28px 0;">
+                        <tr>
+                          <td width="64" valign="top" style="padding-right:16px;">
+                            <table width="48" height="48" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#ede9fe;border-radius:12px;">
+                              <tr>
+                                <td align="center" valign="middle" style="padding:12px;">
+                                  <img src="{email_icon}" width="24" height="24" alt="Email" style="display:block;" />
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                          <td valign="top" style="padding:0;">
+                            <p style="margin:0 0 4px 0;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#6b7280;font-weight:700;">Authorized Login Email</p>
+                            <p style="margin:0;font-size:16px;font-weight:600;color:#7c3aed;">{email}</p>
+                          </td>
+                        </tr>
+                      </table>
 
-            <div class="info-row">
-              <div class="info-icon-cell">
-                <div class="info-icon icon-envelope">✉</div>
-              </div>
-              <div class="info-content">
-                <div class="info-label">Authorized Login Email</div>
-                <div class="info-value">{email}</div>
-              </div>
-            </div>
-
-            <div class="btn-container">
-              <a href="{app_url}" class="btn" target="_blank">Go to Application →</a>
-            </div>
-
-            <div class="footer-section">
-              <p class="footer-text">This invitation was generated by an Admin.<br>If you were not expecting this access request, you can safely ignore this email.</p>
-            </div>
-          </div>
+                      <div style="text-align:center;">
+                        <!--[if mso]>
+                        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{app_url}" style="height:46px;v-text-anchor:middle;width:240px;" arcsize="16%" strokecolor="#2563eb" fillcolor="#2563eb">
+                          <w:anchorlock/>
+                          <center style="color:#ffffff;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:16px;font-weight:700;">Go to Application →</center>
+                        </v:roundrect>
+                        <![endif]-->
+                        <a href="{app_url}" class="button-link" style="background-color:#2563eb;color:#ffffff;display:inline-block;padding:14px 28px;font-size:16px;font-weight:700;border-radius:8px;border:1px solid #2563eb;">Go to Application →</a>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;">
+                  <tr>
+                    <td style="padding:16px;text-align:center;font-size:13px;line-height:20px;color:#6b7280;">
+                      This invitation was generated by an Admin.<br>If you were not expecting this access request, you can safely ignore this email.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>
-  </div>
+  </center>
 </body>
 </html>"""
 
