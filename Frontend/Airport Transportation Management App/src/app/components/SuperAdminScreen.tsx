@@ -621,7 +621,7 @@ export function SuperAdminScreen({ onBack }: Props) {
             <div className="px-6 py-3 border-b border-border space-y-1" style={{ backgroundColor: "#FDF2EA" }}>
               <div className="flex gap-2" style={{ fontSize: "13px" }}>
                 <span className="text-muted-foreground w-14 flex-shrink-0">From:</span>
-                <span style={{ color: "#494D52", fontWeight: 500 }}>Airport Transport App &lt;noreply@airporttransport.app&gt;</span>
+                <span style={{ color: "#494D52", fontWeight: 500 }}>SPS Airport Transport App &lt;noreply@spsairporttransport.app&gt;</span>
               </div>
               <div className="flex gap-2" style={{ fontSize: "13px" }}>
                 <span className="text-muted-foreground w-14 flex-shrink-0">To:</span>
