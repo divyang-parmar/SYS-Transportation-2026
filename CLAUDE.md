@@ -22,28 +22,20 @@ pnpm build
 
 ### Backend
 
+`Backend-js/` (Express + TypeScript + Mongoose) is the canonical backend. The original FastAPI backend is frozen at `archive/Backend/` — see [archive/README.md](archive/README.md).
+
 ```bash
-# Navigate to backend directory
-cd Backend
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start dev server (runs on http://localhost:8000)
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Or run directly
-python app/main.py
-
-# Health check endpoint
+cd Backend-js
+npm install
+npm run dev                     # http://localhost:8000
 curl http://localhost:8000/health
 ```
 
 ### Database
 
 ```bash
-# Set up MongoDB collections (provide your MongoDB connection string)
-python3 Database/create_collections.py '<mongodb_connection_string>'
+# Set up MongoDB collections — use the Python script preserved in archive/
+archive/Backend/.venv/bin/python Database/create_collections.py 'mongodb://localhost:27017'
 ```
 
 ## Environment Setup
@@ -93,32 +85,35 @@ Database collections default to `SPS-Transportation-Admin` — override with `MO
 - `useTheme()` — manages theme state and persistence
 - All screens pass state down; no global context except Google OAuth provider
 
-### Backend (FastAPI + Motor/MongoDB + Async)
+### Backend (Express + TypeScript + Mongoose)
 
-**Location**: `Backend/app/`
+**Location**: `Backend-js/src/`
 
 **Structure**:
-- `main.py` — FastAPI app setup, CORS, exception handlers, route registration
-- `config.py` — Settings loaded from `.env` using Pydantic
-- `routes/` — One file per resource (admin_users, sarthi, vehicles, etc.), each mounted at a prefix
-- `services/` — Business logic (MongoDB queries, SMS, email, AeroAPI, validation)
+- `main.ts` — Express app setup, CORS, middleware, route mounting
+- `config.ts` — zod-validated env loading
+- `db.ts` — Mongoose connection (lazy, non-blocking)
+- `routes/` — One file per resource (admin_users, sarthi, vehicles, intake, jotform_webhook, etc.)
+- `services/` — Business logic (SendGrid email, Twilio SMS, AeroAPI, HMAC validation)
+- `models/` — Mongoose schemas with `strict: false` (matches the Python era's flexible query style)
+- `middleware/` — error handler (incl. `notFoundHandler`), rate limit
 
 **Database**:
-- Async MongoDB driver (Motor) — all DB calls use `await`
-- Collections: `admin_users`, `sarthi`, `vehicles`, `bookings`, `flight_details`, `assignments`
-- No ORM — raw PyMongo queries with `db[collection_name]` syntax
-- All CRUD operations are async
+- Mongoose 8 — `await Model.find().lean()` everywhere reads happen
+- Collections: `admin_users`, `sarthi`, `vehicles`, `bookings`, `flight_details`, `assignments`, `notification_templates`
+- Schemas in `src/models/index.ts` mirror the validators in `Database/create_collections.py`
 
 **Key Integrations**:
-- **SendGrid** (`email_service.py`) — invite emails via REST API (HTTPS/443, works on Render free tier)
-- **Twilio** (`sms_service.py`) — SMS via REST API
-- **FlightAware AeroAPI** (`aero_api.py`) — real-time flight status; returns `None` for flights >7 days out or unavailable
-- **JotForm** (`jotform_webhook.py`) — webhook-driven passenger data intake; signature validation via HMAC
+- **SendGrid** (`email_service.ts`) — invite emails via REST API
+- **Twilio** (`sms_service.ts`) — SMS via REST API
+- **FlightAware AeroAPI** (`aero_api.ts`) — real-time flight status; returns `null` for flights >7 days out
+- **JotForm** (`jotform_webhook.ts`) — webhook-driven passenger intake; HMAC verification via `crypto.timingSafeEqual`
+- **Intake form** (`intake.ts`) — public `POST /intake/submit` for the in-app intake wizard (`/intake` route). Idempotent on optional `submission_id`. Writes identical document shape to JotForm webhook so downstream views are unchanged.
 
 **Notification Templates**:
-- Stored in MongoDB collection (`templates`)
+- Stored in MongoDB collection (`notification_templates`)
 - Editable via SuperAdminScreen (Email and SMS channels)
-- Variables injected with `render_template()` in `sms_service.py` / `email_service.py`
+- Variables injected via `renderTemplate()` helper
 - Default templates seeded to MongoDB on first access
 
 ### Data Flow
@@ -215,8 +210,8 @@ Both frontend and backend can run locally on `localhost`. To test Twilio/SendGri
 
 ### Backend (Render)
 
-- Root directory: `Backend`
-- Build: `pip install -r requirements.txt`
-- Start: `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Environment variables: all from `.env` loaded via Pydantic settings
+- Root directory: `Backend-js`
+- Build: `npm install && npm run build`
+- Start: `npm start` (runs `node dist/main.js`)
+- Environment variables: all from `.env` loaded via zod-validated `src/config.ts`
 - Health check: `GET /health` (used by Render to keep service alive)

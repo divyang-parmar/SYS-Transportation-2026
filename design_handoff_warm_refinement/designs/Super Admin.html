@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Super Admin · SPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="sps-theme.css" />
+<style>
+  .urow { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); }
+  .urow:last-child { border-bottom: none; }
+  .urow:hover { background: var(--surface-2); }
+  .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .seg { display: inline-flex; background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 3px; gap: 2px; }
+  .seg button { font-family: inherit; font-size: 13px; font-weight: 600; color: var(--muted); background: none; border: none; cursor: pointer; padding: 6px 14px; border-radius: 7px; transition: all .14s; }
+  .seg button.on { background: var(--surface); color: var(--accent-strong); box-shadow: var(--sh-1); }
+  .addform { padding: 20px; border: 1px dashed var(--accent-line); background: var(--accent-tint); border-radius: var(--r); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .tmpl-card { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); box-shadow: var(--sh-1); overflow: hidden; }
+  .tmpl-card + .tmpl-card { margin-top: 14px; }
+  .tmpl-head { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--line-soft); background: var(--surface-2); }
+  .tmpl-body { padding: 18px; }
+  .varchip { display: inline-flex; align-items: center; font-family: ui-monospace, monospace; font-size: 11.5px; background: var(--primary-tint); color: var(--primary); border-radius: 6px; padding: 2px 7px; }
+  .vehrow { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line-soft); }
+  .vehrow:last-child { border-bottom: none; }
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%,16px); opacity: 0; pointer-events: none; background: var(--head); color: #fff; border-radius: var(--r-sm); padding: 11px 18px; font-size: 13px; font-weight: 500; box-shadow: var(--sh-3); transition: all .22s; z-index: 60; display: flex; align-items: center; gap: 8px; }
+  .toast.show { opacity: 1; transform: translate(-50%,0); }
+  @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div id="topbar"></div>
+    <div class="tabbar"><div class="container"><div class="tabbar-inner" id="tabs"></div></div></div>
+    <div class="container py-section">
+      <div id="pane-users" class="tabpane"></div>
+      <div id="pane-templates" class="tabpane hide"></div>
+      <div id="pane-vehicles" class="tabpane hide"></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script src="sps-data.js"></script>
+  <script src="sps-ui.js"></script>
+  <script>
+    SPSUI.initTheme();
+    const { icon } = SPSUI;
+    const D = window.SPS;
+    document.getElementById("topbar").innerHTML = SPSUI.topbar("Super Admin Panel", "Suresh Kumar");
+    SPSUI.setTheme(document.documentElement.getAttribute("data-theme"));
+
+    let toastT;
+    function toast(msg) { const t = document.getElementById("toast"); t.innerHTML = icon("checkc", { s: 16 }) + msg; t.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1900); }
+
+    /* tabs */
+    const TABS = [
+      { id: "users", label: "Users", ic: "users" },
+      { id: "templates", label: "Notification Templates", ic: "bell" },
+      { id: "vehicles", label: "Vehicles", ic: "truck" },
+    ];
+    let activeTab = "users";
+    const tabsEl = document.getElementById("tabs");
+    tabsEl.innerHTML = TABS.map((t) => `<button class="tab${t.id === activeTab ? " active" : ""}" data-tab="${t.id}"><span class="ic">${icon(t.ic, { s: 17 })}</span>${t.label}</button>`).join("");
+    tabsEl.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
+      activeTab = b.dataset.tab;
+      tabsEl.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x.dataset.tab === activeTab));
+      ["users", "templates", "vehicles"].forEach((p) => document.getElementById("pane-" + p).classList.toggle("hide", p !== activeTab));
+      window.scrollTo({ top: 0 });
+    }));
+
+    const ROLE = {
+      super_admin:          { label: "Super Admin",     cls: "violet", ic: "shield" },
+      transportation_admin: { label: "Transport Admin", cls: "info",   ic: "grid" },
+      driver:               { label: "Sarthi",          cls: "ok",     ic: "car" },
+    };
+
+    /* ---------- USERS ---------- */
+    let userSearch = "", roleFilter = "all", showAdd = false;
+    function renderUsers() {
+      const counts = {
+        total: D.USERS.length,
+        super_admin: D.USERS.filter((u) => u.role === "super_admin").length,
+        transportation_admin: D.USERS.filter((u) => u.role === "transportation_admin").length,
+        driver: D.USERS.filter((u) => u.role === "driver").length,
+      };
+      const q = userSearch.trim().toLowerCase();
+      const rows = D.USERS.filter((u) => (roleFilter === "all" || u.role === roleFilter) && (!q || (u.name + " " + u.email).toLowerCase().includes(q)));
+      const statCard = (ic, color, label, val, sub) =>
+        `<div class="stat"><div class="stat-ic" style="background:var(--${color}-tint);color:var(--${color})">${icon(ic, { s: 18 })}</div><div class="stat-label">${label}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div></div>`;
+      document.getElementById("pane-users").innerHTML = `
+        <div class="section-head"><h2>User Management</h2>
+          <button class="btn btn--accent" onclick="toggleAdd()">${icon(showAdd ? "x" : "plus", { s: 16 })}${showAdd ? "Close" : "Add User"}</button></div>
+        <div class="stats">
+          ${statCard("users", "accent", "Total Users", counts.total, "all roles")}
+          ${statCard("shield", "violet", "Super Admins", counts.super_admin, "full access")}
+          ${statCard("grid", "info", "Transport Admins", counts.transportation_admin, "operations")}
+          ${statCard("car", "ok", "Sarthis", counts.driver, "drivers")}
+        </div>
+        ${showAdd ? addForm() : ""}
+        <div class="toolbar mt-4">
+          <div class="search grow" style="max-width:360px">${icon("search", { s: 16 })}<input class="input" id="userSearch" placeholder="Search by name or email…" value="${userSearch}"></div>
+          <div class="seg">
+            ${["all", "super_admin", "transportation_admin", "driver"].map((r) => `<button class="${roleFilter === r ? "on" : ""}" onclick="setRole('${r}')">${r === "all" ? "All" : ROLE[r].label}</button>`).join("")}
+          </div>
+        </div>
+        <div class="card mt-3">
+          ${rows.length === 0 ? `<div style="padding:40px;text-align:center" class="muted">No users match.</div>` :
+          rows.map((u) => {
+            const r = ROLE[u.role];
+            return `<div class="urow">
+              <div class="avatar">${u.name[0]}</div>
+              <div class="grow"><div class="name">${u.name}</div>
+                <div class="row wrap gap-4 mt-2">
+                  <span class="fgroup-meta muted" style="font-size:12.5px">${icon("mail", { s: 12 })} ${u.email}</span>
+                  <span class="fgroup-meta muted" style="font-size:12.5px">${icon("phone", { s: 12 })} ${u.phone}</span>
+                </div>
+              </div>
+              <span class="badge badge--${r.cls}">${icon(r.ic, { s: 12 })}${r.label}</span>
+              <button class="iconbtn" style="width:34px;height:34px" onclick="toast('Edit form would open')">${icon("edit", { s: 15 })}</button>
+              <button class="iconbtn" style="width:34px;height:34px" onclick="delUser('${u.id}')" title="Remove">${icon("trash", { s: 15 })}</button>
+            </div>`;
+          }).join("")}
+        </div>
+        <p class="count-note mt-2" style="text-align:right">${rows.length} of ${D.USERS.length} users</p>`;
+      const si = document.getElementById("userSearch");
+      if (si) si.addEventListener("input", (e) => { userSearch = e.target.value; const p = e.target.selectionStart; renderUsers(); const n = document.getElementById("userSearch"); n.focus(); n.setSelectionRange(p, p); });
+    }
+    function addForm() {
+      return `<div class="addform mt-3">
+        <h3 style="font-size:15px;margin-bottom:14px">Add New User</h3>
+        <div class="grid2">
+          <div class="field"><label class="label">Full name</label><input class="input" id="nName" placeholder="e.g. Ramesh Patel"></div>
+          <div class="field"><label class="label">Email</label><input class="input" id="nEmail" type="email" placeholder="name@gmail.com"></div>
+          <div class="field"><label class="label">Phone</label><input class="input" id="nPhone" type="tel" placeholder="+1 (732) 555-0000"></div>
+          <div class="field"><label class="label">Role</label>
+            <select class="select" id="nRole">
+              <option value="transportation_admin">Transportation Admin</option>
+              <option value="super_admin">Super Admin</option>
+              <option value="driver">Sarthi (Driver)</option>
+            </select></div>
+        </div>
+        <div class="row gap-2 mt-4"><button class="btn btn--primary" onclick="addUser()">${icon("check", { s: 16 })}Add &amp; send invite</button>
+          <button class="btn btn--ghost" onclick="toggleAdd()">Cancel</button></div>
+      </div>`;
+    }
+    window.toggleAdd = () => { showAdd = !showAdd; renderUsers(); };
+    window.setRole = (r) => { roleFilter = r; renderUsers(); };
+    window.addUser = () => {
+      const name = document.getElementById("nName").value.trim();
+      const email = document.getElementById("nEmail").value.trim();
+      const phone = document.getElementById("nPhone").value.trim();
+      const role = document.getElementById("nRole").value;
+      if (!name || !email) { toast("Name and email are required"); return; }
+      D.USERS.push({ id: "u" + Date.now(), name, email, phone: phone || "—", role });
+      showAdd = false; renderUsers(); toast(`Invite sent to ${name}`);
+    };
+    window.delUser = (id) => { const i = D.USERS.findIndex((u) => u.id === id); if (i > -1) { const n = D.USERS[i].name; D.USERS.splice(i, 1); renderUsers(); toast(`${n} removed`); } };
+
+    /* ---------- TEMPLATES ---------- */
+    let channel = "email";
+    function renderTemplates() {
+      const list = D.TEMPLATES.filter((t) => t.channel === channel);
+      document.getElementById("pane-templates").innerHTML = `
+        <div class="section-head"><h2>Notification Templates</h2>
+          <div class="seg">
+            <button class="${channel === "email" ? "on" : ""}" onclick="setChannel('email')">${icon("mail", { s: 14 })} Email</button>
+            <button class="${channel === "sms" ? "on" : ""}" onclick="setChannel('sms')">${icon("phone", { s: 14 })} SMS</button>
+          </div>
+        </div>
+        <p class="muted" style="font-size:13px;margin-bottom:16px">Edit the ${channel === "email" ? "email" : "SMS"} messages sent to users and Bhaktos. Variables in <span class="varchip">{{braces}}</span> are filled in automatically.</p>
+        ${list.map((t) => templateCard(t)).join("")}`;
+    }
+    function templateCard(t) {
+      const vars = (t.subject + " " + t.body).match(/\{\{[a-z_]+\}\}/g) || [];
+      const uniq = [...new Set(vars)];
+      return `<div class="tmpl-card">
+        <div class="tmpl-head">${icon(t.channel === "email" ? "mail" : "phone", { s: 16 })}
+          <span class="name">${t.name}</span><span class="badge badge--neutral">${t.channel.toUpperCase()}</span></div>
+        <div class="tmpl-body">
+          ${t.channel === "email" ? `<div class="field mt-2"><label class="label">Subject</label><input class="input" value="${t.subject}" data-sub="${t.id}"></div>` : ""}
+          <div class="field mt-3"><label class="label">Message body</label><textarea class="textarea" data-body="${t.id}" style="min-height:${t.channel === "email" ? "150px" : "90px"}">${t.body}</textarea></div>
+          <div class="row wrap gap-2 mt-3">${uniq.map((v) => `<span class="varchip">${v}</span>`).join("")}</div>
+          <div class="row gap-2 mt-4"><button class="btn btn--primary btn--sm" onclick="toast('${t.name} template saved')">${icon("check", { s: 15 })}Save changes</button>
+            <button class="btn btn--ghost btn--sm" onclick="renderTemplates()">Reset</button></div>
+        </div>
+      </div>`;
+    }
+    window.setChannel = (c) => { channel = c; renderTemplates(); };
+
+    /* ---------- VEHICLES ---------- */
+    let showAddVeh = false;
+    function renderVehicles() {
+      document.getElementById("pane-vehicles").innerHTML = `
+        <div class="section-head"><h2>Fleet Vehicles</h2>
+          <button class="btn btn--accent" onclick="toggleAddVeh()">${icon(showAddVeh ? "x" : "plus", { s: 16 })}${showAddVeh ? "Close" : "Add Vehicle"}</button></div>
+        ${showAddVeh ? `<div class="addform mb-3" style="margin-bottom:14px">
+          <h3 style="font-size:15px;margin-bottom:14px">New Vehicle</h3>
+          <div class="grid2">
+            <div class="field"><label class="label">Make</label><input class="input" id="vMake" placeholder="Toyota"></div>
+            <div class="field"><label class="label">Model / Name</label><input class="input" id="vName" placeholder="Sienna"></div>
+            <div class="field"><label class="label">Vehicle Number</label><input class="input" id="vNum" placeholder="NJ ABC-1234"></div>
+            <div class="field"><label class="label">Type</label><input class="input" id="vType" placeholder="Minivan"></div>
+            <div class="field"><label class="label">Capacity</label><input class="input" id="vCap" type="number" placeholder="7"></div>
+          </div>
+          <div class="row gap-2 mt-4"><button class="btn btn--primary" onclick="addVeh()">${icon("check", { s: 16 })}Add vehicle</button>
+            <button class="btn btn--ghost" onclick="toggleAddVeh()">Cancel</button></div>
+        </div>` : ""}
+        <div class="card">
+          ${D.VEHICLES.map((v) => {
+            const drv = v.driverId ? D.SARTHIS.find((s) => s.id === v.driverId) : null;
+            return `<div class="vehrow">
+              <div class="avatar avatar--blue">${icon("truck", { s: 18 })}</div>
+              <div class="grow"><div class="row wrap gap-2"><span class="name">${v.make} ${v.name}</span><span class="tag">${v.type}</span><span class="muted" style="font-size:12.5px">${v.capacity} seats</span></div>
+                <div class="fgroup-meta muted mt-2" style="font-size:12.5px">${v.number}${drv ? ` · assigned to <span style="color:var(--ok);font-weight:600">${drv.name}</span>` : ""}</div></div>
+              <button class="iconbtn" style="width:34px;height:34px" onclick="toast('Edit form would open')">${icon("edit", { s: 15 })}</button>
+              <button class="iconbtn" style="width:34px;height:34px" onclick="delVeh('${v.id}')">${icon("trash", { s: 15 })}</button>
+            </div>`;
+          }).join("")}
+        </div>`;
+    }
+    window.toggleAddVeh = () => { showAddVeh = !showAddVeh; renderVehicles(); };
+    window.addVeh = () => {
+      const make = document.getElementById("vMake").value.trim(), name = document.getElementById("vName").value.trim();
+      if (!make || !name) { toast("Make and model are required"); return; }
+      D.VEHICLES.push({ id: "v" + Date.now(), make, name, number: document.getElementById("vNum").value.trim() || "—", type: document.getElementById("vType").value.trim() || "Vehicle", capacity: +document.getElementById("vCap").value || 4, driverId: null });
+      showAddVeh = false; renderVehicles(); toast(`${make} ${name} added`);
+    };
+    window.delVeh = (id) => { const i = D.VEHICLES.findIndex((v) => v.id === id); if (i > -1) { const n = D.VEHICLES[i].make + " " + D.VEHICLES[i].name; D.VEHICLES.splice(i, 1); renderVehicles(); toast(`${n} removed`); } };
+
+    renderUsers(); renderTemplates(); renderVehicles();
+  </script>
+</body>
+</html>

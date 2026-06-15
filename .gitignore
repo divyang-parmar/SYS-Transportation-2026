@@ -18,6 +18,10 @@ build/
 
 # Node / Frontend
 node_modules/
+node_modules*/
 dist/
 .next/
 *.local
+
+# IDE / editor scratch
+.claude/local.*
