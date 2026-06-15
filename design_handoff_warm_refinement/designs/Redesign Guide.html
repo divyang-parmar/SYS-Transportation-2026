@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SPS Transportation — Redesign Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #494D52;
+    --navy: #173D61;
+    --blue: #0C71C3;
+    --blue-bright: #067BC2;
+    --sky: #2EA3F2;
+    --cream: #FEF2E6;
+    --cream-2: #FDF2EA;
+    --terra: #FFEADE;
+    --gray: #999999;
+    --stroke: #CCCCCC;
+    --white: #FFFFFF;
+    --err: #E02B20;
+    --warn: #FCB900;
+    --ok: #1F8A4C;
+    --maxw: 940px;
+  }
+  * { box-sizing: border-box; }
+  html { font-size: 16px; }
+  body {
+    margin: 0;
+    font-family: 'Rubik', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 32px; }
+
+  /* ---- Hero ---- */
+  .hero {
+    background: linear-gradient(180deg, #fff 0%, var(--cream) 100%);
+    border-bottom: 1px solid var(--stroke);
+    padding: 72px 0 56px;
+  }
+  .eyebrow {
+    font-size: 13px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--blue); margin: 0 0 18px;
+  }
+  .hero h1 {
+    font-size: 46px; font-weight: 500; line-height: 1.1; color: var(--navy);
+    margin: 0 0 20px; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  .hero p.lead {
+    font-size: 18px; color: var(--ink); max-width: 620px; margin: 0;
+  }
+  .hero .meta {
+    margin-top: 32px; display: flex; gap: 28px; flex-wrap: wrap;
+    font-size: 13px; color: var(--gray);
+  }
+  .hero .meta b { color: var(--navy); font-weight: 600; }
+
+  /* ---- Section scaffolding ---- */
+  section { padding: 56px 0; }
+  section + section { border-top: 1px solid rgba(204,204,204,0.6); }
+  .kicker {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--blue); margin: 0 0 16px;
+  }
+  .kicker .num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  h2.sec { font-size: 30px; font-weight: 500; color: var(--navy); margin: 0 0 14px; letter-spacing: -0.01em; }
+  .sec-intro { font-size: 16px; color: var(--ink); max-width: 640px; margin: 0 0 36px; }
+
+  /* ---- Cards ---- */
+  .card {
+    background: #fff; border: 1px solid var(--stroke); border-radius: 8px;
+    box-shadow: rgba(0,0,0,0.06) 0px 1px 2px 0px;
+  }
+  .grid { display: grid; gap: 20px; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+  /* who-for personas */
+  .persona { padding: 24px; }
+  .persona .role {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--blue);
+    margin: 0 0 6px;
+  }
+  .persona h3 { font-size: 18px; font-weight: 600; color: var(--navy); margin: 0 0 8px; }
+  .persona p { font-size: 14px; margin: 0; color: var(--ink); }
+  .persona .pill {
+    display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 500;
+    background: var(--cream); border: 1px solid var(--terra); color: var(--ink);
+    padding: 4px 10px; border-radius: 999px;
+  }
+
+  /* glossary */
+  .glossary { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0; }
+  .glossary dl { margin: 0; }
+  .glossary .row {
+    display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(204,204,204,0.5);
+    align-items: baseline;
+  }
+  .glossary dt { font-weight: 600; color: var(--navy); min-width: 88px; font-size: 14px; }
+  .glossary dd { margin: 0; font-size: 14px; color: var(--ink); }
+
+  /* ---- Design system snapshot ---- */
+  .swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  .sw { border-radius: 8px; overflow: hidden; border: 1px solid var(--stroke); background: #fff; }
+  .sw .chip { height: 64px; }
+  .sw .lab { padding: 8px 10px; font-size: 11px; }
+  .sw .lab b { display: block; color: var(--navy); font-weight: 600; font-size: 12px; }
+  .sw .lab span { color: var(--gray); font-variant-numeric: tabular-nums; }
+
+  .type-demo { padding: 28px; }
+  .type-demo .t-row { display: flex; align-items: baseline; gap: 20px; padding: 10px 0; border-bottom: 1px dashed rgba(204,204,204,0.6); }
+  .type-demo .t-row:last-child { border-bottom: none; }
+  .type-demo .t-meta { font-size: 11px; color: var(--gray); width: 120px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+
+  /* ---- Critique two-col ---- */
+  .assess { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .assess .col { padding: 24px; border-radius: 8px; }
+  .assess .keep { background: #fff; border: 1px solid var(--stroke); }
+  .assess .fix { background: #fff; border: 1px solid var(--stroke); }
+  .assess h3 { font-size: 15px; margin: 0 0 16px; display: flex; align-items: center; gap: 8px; font-weight: 600; }
+  .assess .keep h3 { color: var(--ok); }
+  .assess .fix h3 { color: var(--blue); }
+  .assess ul { margin: 0; padding: 0; list-style: none; }
+  .assess li { font-size: 14px; padding: 10px 0; border-top: 1px solid rgba(204,204,204,0.5); display: flex; gap: 10px; }
+  .assess li:first-of-type { border-top: none; }
+  .assess li .mk { flex-shrink: 0; font-weight: 700; }
+  .assess .keep li .mk { color: var(--ok); }
+  .assess .fix li .mk { color: var(--blue); }
+  .assess li b { color: var(--navy); font-weight: 600; }
+
+  /* ---- Directions ---- */
+  .dir { padding: 0; overflow: hidden; }
+  .dir-head { padding: 24px 24px 0; }
+  .dir .tag {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 10px; border-radius: 999px; margin-bottom: 14px;
+  }
+  .dir .tag.low { background: #E7F4EC; color: var(--ok); }
+  .dir .tag.med { background: #E3F0FB; color: var(--blue-bright); }
+  .dir .tag.high { background: var(--terra); color: #C0531F; }
+  .dir h3 { font-size: 20px; font-weight: 600; color: var(--navy); margin: 0 0 6px; }
+  .dir .sub { font-size: 13px; color: var(--gray); margin: 0 0 16px; }
+  .dir p.body { font-size: 14px; color: var(--ink); margin: 0 24px 18px; }
+  .dir ul.feat { margin: 0 24px 22px; padding: 0; list-style: none; }
+  .dir ul.feat li { font-size: 13px; padding: 6px 0 6px 20px; position: relative; color: var(--ink); }
+  .dir ul.feat li::before { content: "→"; position: absolute; left: 0; color: var(--blue); font-weight: 600; }
+
+  /* mini wireframe thumbnails (simple CSS only) */
+  .thumb { height: 168px; background: var(--cream-2); border-bottom: 1px solid var(--stroke); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .thumb .bar { height: 10px; border-radius: 3px; background: #fff; border: 1px solid var(--stroke); }
+  .thumb .bar.nav { background: var(--navy); border: none; height: 14px; }
+  .thumb .bar.accent { background: var(--blue); border: none; }
+  .thumb .bar.warm { background: var(--terra); border: 1px solid #f0d8c8; }
+  .thumb .rowm { display: flex; gap: 8px; }
+  .thumb .box { flex: 1; background: #fff; border: 1px solid var(--stroke); border-radius: 4px; }
+
+  /* ---- Next steps ---- */
+  .steps { counter-reset: step; }
+  .step { display: flex; gap: 18px; padding: 18px 0; border-top: 1px solid rgba(204,204,204,0.5); }
+  .step:first-child { border-top: none; }
+  .step .n {
+    counter-increment: step; flex-shrink: 0;
+    width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--blue); color: var(--blue);
+    display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px;
+  }
+  .step .n::before { content: counter(step); }
+  .step h4 { margin: 4px 0 4px; font-size: 16px; color: var(--navy); font-weight: 600; }
+  .step p { margin: 0; font-size: 14px; color: var(--ink); }
+
+  .callout {
+    background: #fff; border: 1px solid var(--stroke); border-left: 4px solid var(--blue);
+    border-radius: 6px; padding: 22px 26px; margin-top: 36px;
+  }
+  .callout h4 { margin: 0 0 8px; color: var(--navy); font-size: 16px; font-weight: 600; }
+  .callout p { margin: 0; font-size: 14px; }
+
+  footer { padding: 40px 0 64px; text-align: center; color: var(--gray); font-size: 12px; }
+
+  @media (max-width: 760px) {
+    .grid-2, .grid-3, .assess, .glossary { grid-template-columns: 1fr; }
+    .swatches { grid-template-columns: repeat(3, 1fr); }
+    .hero h1 { font-size: 34px; }
+    .type-demo .t-meta { width: auto; }
+  }
+</style>
+</head>
+<body>
+
+  <header class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Redesign Guide · Internal</p>
+      <h1>Suhradam Parivar Shibir<br />Airport Transportation</h1>
+      <p class="lead">A working read on the current app, the design system it ships with, and three concrete directions we could take the redesign. Pick a screen and a direction, and I'll build it out in high fidelity.</p>
+      <div class="meta">
+        <span><b>Stack</b> · React + TypeScript + Tailwind v4</span>
+        <span><b>Roles</b> · Super Admin · Transport Admin · Sarthi</span>
+        <span><b>System</b> · Harisumiran-inspired</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 1. What the app is -->
+  <section>
+    <div class="wrap">
+      <p class="kicker"><span class="num">1</span> What we're working with</p>
+      <h2 class="sec">An operations tool for getting devotees to and from the airport</h2>
+      <p class="sec-intro">During a shibir, hundreds of Bhaktos fly in and out. The app coordinates the volunteers (Sarthis) and vehicles that pick them up — grouping passengers by flight, assigning a Sarthi to each, and notifying everyone over SMS and email. Three people use it, each with very different needs.</p>
+
+      <div class="grid grid-3">
+        <div class="card persona">
+          <p class="role">Super Admin</p>
+          <h3>Sets up the world</h3>
+          <p>Manages users, vehicles, and the SMS / email notification templates. Heavy forms, infrequent use.</p>
+          <span class="pill">Desktop · dense</span>
+        </div>
+        <div class="card persona">
+          <p class="role">Transport Admin</p>
+          <h3>Runs the operation</h3>
+          <p>Sees every arrival &amp; departure flight group, assigns a Sarthi to each booking, watches what's still unassigned.</p>
+          <span class="pill">Desktop · the command center</span>
+        </div>
+        <div class="card persona">
+          <p class="role">Sarthi (Driver)</p>
+          <h3>Does the pickups</h3>
+          <p>On a phone, in a busy terminal. Needs their pickup list, passenger contacts, and a big "done" button. Nothing else.</p>
+          <span class="pill">Mobile · glanceable</span>
+        </div>
+      </div>
+
+      <div style="margin-top:32px" class="card">
+        <div style="padding:24px 28px 8px"><p class="role" style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--blue);margin:0 0 4px">The vocabulary</p></div>
+        <div class="glossary" style="padding:0 28px 16px">
+          <dl>
+            <div class="row"><dt>Sarthi</dt><dd>Volunteer driver who collects passengers</dd></div>
+            <div class="row"><dt>Bhaktos</dt><dd>The devotees / passengers being transported</dd></div>
+            <div class="row"><dt>Mandal</dt><dd>The local chapter a passenger belongs to</dd></div>
+          </dl>
+          <dl>
+            <div class="row"><dt>Flight group</dt><dd>Passengers clustered onto the same flight</dd></div>
+            <div class="row"><dt>Assignment</dt><dd>A Sarthi linked to a booking (triggers SMS)</dd></div>
+            <div class="row"><dt>Shibir</dt><dd>The gathering/event the travel is for</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Design system snapshot -->
+  <section>
+    <div class="wrap">
+      <p class="kicker"><span class="num">2</span> The design system today</p>
+      <h2 class="sec">Harisumiran-inspired — warm intent, cool execution</h2>
+      <p class="sec-intro">The system documents a "sacred, contemplative" palette of temple-warm creams and terracotta, paired with a Rubik type scale. In practice the app leans almost entirely on one corporate blue. That gap is the single biggest opportunity in the redesign.</p>
+
+      <div class="swatches">
+        <div class="sw"><div class="chip" style="background:#0C71C3"></div><div class="lab"><b>Primary</b><span>#0C71C3</span></div></div>
+        <div class="sw"><div class="chip" style="background:#173D61"></div><div class="lab"><b>Navy</b><span>#173D61</span></div></div>
+        <div class="sw"><div class="chip" style="background:#494D52"></div><div class="lab"><b>Ink</b><span>#494D52</span></div></div>
+        <div class="sw"><div class="chip" style="background:#FEF2E6"></div><div class="lab"><b>Cream</b><span>#FEF2E6</span></div></div>
+        <div class="sw"><div class="chip" style="background:#FFEADE"></div><div class="lab"><b>Terracotta</b><span>#FFEADE</span></div></div>
+        <div class="sw"><div class="chip" style="background:#CCCCCC"></div><div class="lab"><b>Stroke</b><span>#CCCCCC</span></div></div>
+      </div>
+
+      <div class="card type-demo" style="margin-top:24px">
+        <div class="t-row"><span class="t-meta">Display · 30 / 500</span><span style="font-size:30px;font-weight:500;color:var(--navy)">Incoming Flights</span></div>
+        <div class="t-row"><span class="t-meta">Heading · 26 / 500</span><span style="font-size:26px;font-weight:500;color:var(--navy)">Sarthi Roster</span></div>
+        <div class="t-row"><span class="t-meta">Body · 14 / 500</span><span style="font-size:14px;font-weight:500">Assign a Sarthi to each booking before the flight lands.</span></div>
+        <div class="t-row"><span class="t-meta">Button · 14 / 600</span><span style="font-size:14px;font-weight:600;color:#fff;background:var(--blue);padding:8px 16px;border-radius:4px">Mark complete</span></div>
+        <div class="t-row" style="border-bottom:none"><span class="t-meta">Caption · 13 / 500</span><span style="font-size:13px;color:var(--gray)">3 flights · 2 delayed</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Assessment -->
+  <section>
+    <div class="wrap">
+      <p class="kicker"><span class="num">3</span> My honest assessment</p>
+      <h2 class="sec">Solid bones, generic skin</h2>
+      <p class="sec-intro">It's a genuinely capable, well-structured tool. The redesign isn't about fixing what's broken — it's about giving it an identity and tightening it for the people actually using it day-of.</p>
+
+      <div class="assess">
+        <div class="col keep">
+          <h3>✓ Keep</h3>
+          <ul>
+            <li><span class="mk">✓</span><span>Clear <b>role-based screens</b> — each user lands exactly where they should</span></li>
+            <li><span class="mk">✓</span><span>The <b>flight-group → booking → Sarthi</b> mental model is sound and scannable</span></li>
+            <li><span class="mk">✓</span><span>The <b>login screen's warmth</b> (cream + terracotta) is the one place the brand sings</span></li>
+            <li><span class="mk">✓</span><span>Sensible <b>summary cards</b> and progress indicators already exist</span></li>
+          </ul>
+        </div>
+        <div class="col fix">
+          <h3>↑ Elevate</h3>
+          <ul>
+            <li><span class="mk">↑</span><span><b>Commit to the warmth.</b> Carry the login's cream/terracotta through the whole app instead of defaulting to blue</span></li>
+            <li><span class="mk">↑</span><span><b>Scale up for the Sarthi.</b> 0.72rem labels and small targets are rough on a phone in a terminal — bigger type, 48px+ hits</span></li>
+            <li><span class="mk">↑</span><span><b>Systematize status.</b> Many ad-hoc colored pills (amber, teal, red, green) → one consistent status language</span></li>
+            <li><span class="mk">↑</span><span><b>Kill the inline hex.</b> Hardcoded colors don't respond to dark mode — move to tokens</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Directions -->
+  <section>
+    <div class="wrap">
+      <p class="kicker"><span class="num">4</span> Three directions</p>
+      <h2 class="sec">Pick a lane — or mix and match</h2>
+      <p class="sec-intro">These aren't mutually exclusive. A is a finish we'd want regardless; B and C are bigger swings on specific screens. Tell me which screen matters most and which direction appeals, and I'll build it out fully and clickable.</p>
+
+      <div class="grid grid-3">
+        <!-- A -->
+        <div class="card dir">
+          <div class="thumb">
+            <div class="bar nav" style="width:100%"></div>
+            <div class="bar warm" style="width:60%"></div>
+            <div class="rowm" style="flex:1">
+              <div class="box"></div><div class="box"></div><div class="box"></div>
+            </div>
+            <div class="bar accent" style="width:40%;height:14px"></div>
+          </div>
+          <div class="dir-head">
+            <span class="tag low">● Low risk · refresh</span>
+            <h3>A · Warm Refinement</h3>
+            <p class="sub">Same structure, true to the brand</p>
+          </div>
+          <p class="body">Keep every screen where it is, but finally deliver the design system as written: temple-warm surfaces, a single status language, a larger type scale, and proper tokens.</p>
+          <ul class="feat">
+            <li>Cream + terracotta surfaces app-wide</li>
+            <li>Unified status chips &amp; badges</li>
+            <li>Bigger, more legible type scale</li>
+            <li>Polished dark mode</li>
+          </ul>
+        </div>
+
+        <!-- B -->
+        <div class="card dir">
+          <div class="thumb">
+            <div class="bar nav" style="width:50%"></div>
+            <div class="rowm" style="flex:1;flex-direction:column;gap:8px">
+              <div class="box" style="flex:0 0 auto;height:40px"></div>
+              <div class="box" style="flex:0 0 auto;height:40px"></div>
+              <div class="box" style="flex:0 0 auto;height:40px;border-color:var(--blue)"></div>
+            </div>
+            <div class="bar accent" style="width:100%;height:22px;border-radius:6px"></div>
+          </div>
+          <div class="dir-head">
+            <span class="tag med">● Medium · rethink</span>
+            <h3>B · Sarthi-First</h3>
+            <p class="sub">The day-of mobile pickup tool</p>
+          </div>
+          <p class="body">Rebuild the driver experience as a focused, big-touch field tool: a time-ordered run of pickups, one-tap call &amp; navigate, an oversized complete action, and an at-a-glance "where am I in my day" header.</p>
+          <ul class="feat">
+            <li>Timeline of today's pickups</li>
+            <li>One-tap call / WhatsApp / maps</li>
+            <li>Oversized complete + swipe</li>
+            <li>Works one-handed, offline-friendly</li>
+          </ul>
+        </div>
+
+        <!-- C -->
+        <div class="card dir">
+          <div class="thumb">
+            <div class="bar nav" style="width:100%"></div>
+            <div class="rowm" style="flex:1">
+              <div class="box" style="flex:0 0 30%"></div>
+              <div class="box" style="position:relative">
+                <div class="bar accent" style="position:absolute;top:14px;left:10px;width:50%;height:9px"></div>
+                <div class="bar warm" style="position:absolute;top:30px;left:24px;width:40%;height:9px"></div>
+                <div class="bar accent" style="position:absolute;top:46px;left:6px;width:30%;height:9px"></div>
+              </div>
+            </div>
+          </div>
+          <div class="dir-head">
+            <span class="tag high">● Higher · reimagine</span>
+            <h3>C · Ops Command Board</h3>
+            <p class="sub">A live timeline for the admin</p>
+          </div>
+          <p class="body">Reimagine the Transport Admin as a real-time board: flights laid out on a time axis, live status (delayed / landed), unassigned bookings surfaced loudly, and drag-to-assign Sarthis with capacity awareness.</p>
+          <ul class="feat">
+            <li>Flights on a time axis</li>
+            <li>Live status &amp; delay surfacing</li>
+            <li>Drag-to-assign Sarthis</li>
+            <li>"What still needs a driver" front &amp; center</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Next steps -->
+  <section>
+    <div class="wrap">
+      <p class="kicker"><span class="num">5</span> How we proceed</p>
+      <h2 class="sec">Your call, then I build</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h4>Choose a screen to lead with</h4>
+            <p>Sarthi pickup list, the Transport Admin board, the Bhaktos dashboard, or the Super Admin panel. We start where the value is highest for you.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h4>Pick a direction (A, B, C — or a blend)</h4>
+            <p>e.g. "Warm Refinement applied to the whole app" or "go all-in on the Sarthi-First mobile tool."</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="n"></div>
+          <div>
+            <h4>I build it clickable &amp; hi-fi</h4>
+            <p>A real, interactive prototype using the actual data shapes — with Tweaks so you can toggle color themes, density, and light/dark live.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <h4>My recommendation</h4>
+        <p>Start with <b>Direction A applied across the app</b> as the baseline, then go deep on the <b>Sarthi-First mobile tool (B)</b> — that's where everyday users feel the redesign most, and it's the most visually distinct win. The Ops Command Board (C) is the exciting follow-up once the foundation is set.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Suhradam Parivar Shibir · Transportation Management — redesign guide · prepared for review
+  </footer>
+
+</body>
+</html>

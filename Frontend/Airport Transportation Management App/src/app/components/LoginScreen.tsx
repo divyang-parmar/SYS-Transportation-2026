@@ -1,16 +1,14 @@
 import { useState } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
-import { Plane, Moon, Sun } from "lucide-react";
+import { Plane, Moon, Sun, Lock } from "lucide-react";
 import { GoogleAuthModal } from "./GoogleAuthModal";
-import { registeredUsers, type Role } from "../data/mockData";
+import type { Role } from "../data/mockData";
 import { useTheme } from "../hooks/useTheme";
-
-import { API_BASE } from "../lib/api";
-const ADMIN_USERS_API = `${API_BASE}/admin-users`;
-const SARTHI_API      = `${API_BASE}/sarthi`;
+import { lookupRoles } from "../lib/lookupRoles";
+import type { AvailableRole } from "../App";
 
 interface Props {
-  onLogin: (role: Role, name: string, id?: string) => void;
+  onLogin: (available: AvailableRole[], initial: AvailableRole) => void;
 }
 
 export type AuthStep = "idle" | "checking" | "denied" | "success";
@@ -33,26 +31,9 @@ export function LoginScreen({ onLogin }: Props) {
       const googleName  = profile.name ?? "";
       setEmail(googleEmail);
 
-      const encoded = encodeURIComponent(googleEmail);
-      const [sarthiRes, taRes] = await Promise.allSettled([
-        fetch(`${SARTHI_API}/find-by-email?email=${encoded}`).then((r) => r.ok ? r.json() : null),
-        fetch(`${ADMIN_USERS_API}/find-by-email?email=${encoded}`).then((r) => r.ok ? r.json() : null),
-      ]);
+      const available = await lookupRoles(googleEmail, googleName);
 
-      const sarthi = sarthiRes.status === "fulfilled" ? sarthiRes.value : null;
-      const ta     = taRes.status     === "fulfilled" ? taRes.value     : null;
-
-      let found: { name: string; role: Role; id?: string } | null = null;
-      if (sarthi?.id) {
-        found = { name: sarthi.name, role: "driver" as Role, id: sarthi.id };
-      } else if (ta?.id) {
-        found = { name: ta.name, role: ta.role as Role, id: ta.id };
-      } else {
-        const mock = registeredUsers.find((u) => u.email.toLowerCase() === googleEmail);
-        if (mock) found = { name: mock.name, role: mock.role };
-      }
-
-      if (!found) {
+      if (available.length === 0) {
         setDenialReason(
           `The Google account ${googleEmail} has not been assigned a role. Please contact your Super Admin.`
         );
@@ -60,10 +41,11 @@ export function LoginScreen({ onLogin }: Props) {
         return;
       }
 
-      const displayName = found.name || googleName;
-      setMatchedUser({ name: displayName, role: found.role });
+      const initial = available[0];
+      const displayName = initial.name || googleName;
+      setMatchedUser({ name: displayName, role: initial.role });
       setStep("success");
-      setTimeout(() => onLogin(found!.role, displayName, found!.id), 1200);
+      setTimeout(() => onLogin(available, { ...initial, name: displayName }), 1200);
     } catch {
       setDenialReason("Something went wrong during sign-in. Please try again.");
       setStep("denied");
@@ -81,83 +63,91 @@ export function LoginScreen({ onLogin }: Props) {
   const handleClose = () => { setStep("idle"); setEmail(""); };
   const handleRetry = () => { setStep("idle"); setEmail(""); googleLogin(); };
 
+  const bgStyle: React.CSSProperties = {
+    background:
+      "radial-gradient(60% 50% at 85% 8%, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 60%), radial-gradient(55% 45% at 8% 92%, color-mix(in srgb, var(--primary) 12%, transparent) 0%, transparent 55%), var(--background)",
+  };
+  const emblemStyle: React.CSSProperties = {
+    width: 76, height: 76, borderRadius: 24,
+    background: "linear-gradient(160deg, var(--accent) 0%, var(--accent-strong) 100%)",
+    boxShadow: "0 10px 28px color-mix(in srgb, var(--accent) 38%, transparent)",
+  };
+
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#FEF2E6" }}>
-      <div style={{ backgroundColor: "#0C71C3", height: "4px", width: "100%" }} />
+    <div className="min-h-screen flex flex-col" style={bgStyle}>
+      <div style={{ height: 4, background: "linear-gradient(90deg, var(--accent), var(--primary))" }} />
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
-        <div className="flex flex-col items-center mb-12">
-          <div
-            className="flex items-center justify-center mb-6"
-            style={{ width: "96px", height: "96px", borderRadius: "50%", backgroundColor: "#FFEADE", border: "1px solid #CCCCCC" }}
-          >
-            <Plane className="w-10 h-10" style={{ color: "#0C71C3" }} strokeWidth={1.5} />
+      <button
+        onClick={toggle}
+        className="iconbtn fixed top-5 right-5"
+        title="Toggle theme"
+        aria-label="Toggle theme"
+      >
+        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        <div
+          className="w-full max-w-[392px] bg-surface border border-line"
+          style={{ padding: "40px 34px 30px", borderRadius: "var(--r-xl)", boxShadow: "0 12px 40px rgba(40,25,10,0.16)" }}
+        >
+          <div className="flex flex-col items-center text-center">
+            <div className="flex items-center justify-center" style={emblemStyle}>
+              <Plane className="text-white" style={{ width: 38, height: 38 }} strokeWidth={1.6} />
+            </div>
+            <h1
+              className="mt-[18px]"
+              style={{ fontSize: 24, fontWeight: 600, color: "var(--head)", letterSpacing: "-0.01em" }}
+            >
+              Suhradam Parivar Shibir
+            </h1>
+            <p
+              className="mt-2 text-muted-foreground"
+              style={{ fontSize: 12, letterSpacing: "0.14em", textTransform: "uppercase" }}
+            >
+              Airport Transportation
+            </p>
           </div>
-          <h1 style={{ fontSize: "30px", fontWeight: 500, color: "#173D61", textAlign: "center", lineHeight: "30px", marginBottom: "8px" }}>
-            Suhradam Parivar Shibir
-          </h1>
-          <p style={{ fontSize: "13px", color: "#999999", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-            Airport Transportation
-          </p>
-        </div>
 
-        <div style={{ width: "100%", maxWidth: "320px" }}>
-          <div
+          <button
+            onClick={() => googleLogin()}
+            className="w-full flex items-center justify-center gap-3 mt-7 transition-all hover:shadow-warm-2"
             style={{
-              backgroundColor: "#FFFFFF",
-              border: "1px solid #CCCCCC",
-              borderRadius: "4px",
-              padding: "24px",
-              boxShadow: "rgba(0,0,0,0.1) 0px 2px 5px 0px",
+              background: "var(--surface)",
+              color: "var(--head)",
+              border: "1.5px solid var(--line)",
+              borderRadius: "var(--r-sm)",
+              padding: 13,
+              fontSize: 15,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--accent-line)";
+              e.currentTarget.style.background = "var(--surface-2)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--line)";
+              e.currentTarget.style.background = "var(--surface)";
             }}
           >
-            <p style={{ fontSize: "13px", color: "#999999", textAlign: "center", marginBottom: "16px" }}>
-              Sign in to access your dashboard
-            </p>
+            <GoogleColorIcon />
+            Sign in with Google
+          </button>
 
-            <button
-              onClick={() => googleLogin()}
-              className="w-full flex items-center justify-center gap-3 cursor-pointer transition-colors"
-              style={{
-                backgroundColor: "#0C71C3",
-                color: "#FFFFFF",
-                fontSize: "14px",
-                fontWeight: 600,
-                padding: "12px 24px",
-                borderRadius: "4px",
-                border: "none",
-                lineHeight: "14px",
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#067BC2"; }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0C71C3"; }}
-            >
-              <GoogleColorIcon />
-              Sign in with Google
-            </button>
-
-            <p style={{ fontSize: "13px", color: "#999999", textAlign: "center", marginTop: "12px" }}>
-              Access is granted based on your assigned role
-            </p>
+          <div className="mt-5 flex items-center justify-center gap-2 text-muted-foreground" style={{ fontSize: 12 }}>
+            <Lock className="w-3.5 h-3.5" />
+            Access is granted based on your assigned role
           </div>
         </div>
-      </div>
 
-      <div style={{ paddingBottom: "32px", textAlign: "center" }}>
-        <div style={{ marginBottom: "12px", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
-          <p style={{ fontSize: "13px", color: "#CCCCCC", margin: 0 }}>
-            Suhradam Parivar Shibir · Transportation Management
-          </p>
-          <button onClick={toggle} className="p-1.5 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
-            {isDark ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
-          </button>
-        </div>
-        <p style={{ fontSize: "11px", color: "#BBBBBB", lineHeight: 1.6 }}>
+        <p className="mt-6 text-center text-muted-foreground" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
           By signing in, you agree to our{" "}
           <a
             href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: "#0C71C3", textDecoration: "underline" }}
+            className="text-primary hover:underline"
           >
             SMS Terms &amp; Conditions
           </a>
@@ -166,7 +156,7 @@ export function LoginScreen({ onLogin }: Props) {
             href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: "#0C71C3", textDecoration: "underline" }}
+            className="text-primary hover:underline"
           >
             Privacy Policy
           </a>

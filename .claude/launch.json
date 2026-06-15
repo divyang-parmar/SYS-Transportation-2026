@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend (Node Express)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "Backend-js",
+      "port": 8000
+    },
+    {
+      "name": "Frontend (Vite + React)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "cwd": "Frontend/Airport Transportation Management App",
+      "port": 5173
+    }
+  ]
+}

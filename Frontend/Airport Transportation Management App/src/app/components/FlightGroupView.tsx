@@ -18,6 +18,7 @@ import {
   ChevronsUp,
 } from "lucide-react";
 import { type FlightGroup, type Passenger, type FlightStatus } from "../data/mockData";
+import { ShareLink } from "./ShareLink";
 
 export interface Sarthi {
   id: string;
@@ -42,13 +43,13 @@ interface Props {
   onUnassign: (passengerId: string) => void;
 }
 
-const statusConfig: Record<FlightStatus, { label: string; color: string; icon: ReactNode }> = {
-  on_time:   { label: "On Time",   color: "bg-green-100 text-green-700 border-green-200",   icon: <CheckCircle2 className="w-3 h-3" /> },
-  delayed:   { label: "Delayed",   color: "bg-amber-100 text-amber-700 border-amber-200",   icon: <AlertTriangle className="w-3 h-3" /> },
-  early:     { label: "Early",     color: "bg-teal-100 text-teal-700 border-teal-200",      icon: <ChevronsUp className="w-3 h-3" /> },
-  cancelled: { label: "Cancelled", color: "bg-red-100 text-red-700 border-red-200",         icon: <Ban className="w-3 h-3" /> },
-  landed:    { label: "Landed",    color: "bg-blue-100 text-blue-700 border-blue-200",      icon: <PlaneLanding className="w-3 h-3" /> },
-  departed:  { label: "Departed",  color: "bg-purple-100 text-purple-700 border-purple-200", icon: <PlaneTakeoff className="w-3 h-3" /> },
+const statusConfig: Record<FlightStatus, { label: string; badge: string; icon: ReactNode }> = {
+  on_time:   { label: "On Time",   badge: "badge--ok",     icon: <CheckCircle2 className="w-3 h-3" /> },
+  delayed:   { label: "Delayed",   badge: "badge--warn",   icon: <AlertTriangle className="w-3 h-3" /> },
+  early:     { label: "Early",     badge: "badge--info",   icon: <ChevronsUp className="w-3 h-3" /> },
+  cancelled: { label: "Cancelled", badge: "badge--danger", icon: <Ban className="w-3 h-3" /> },
+  landed:    { label: "Landed",    badge: "badge--info",   icon: <PlaneLanding className="w-3 h-3" /> },
+  departed:  { label: "Departed",  badge: "badge--violet", icon: <PlaneTakeoff className="w-3 h-3" /> },
 };
 
 function formatTimeDiff(scheduled: string, actual: string): string | null {
@@ -77,36 +78,59 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
   const isCancelled = group.status === "cancelled";
   const timeChanged = group.actualTime !== group.scheduledTime;
 
+  // Time block tint by status
+  const timeBlockBg = isCancelled ? "var(--danger-tint)"
+    : isDelayed ? "var(--warn-tint)"
+    : isEarly ? "var(--info-tint)"
+    : "var(--accent-tint)";
+
   return (
-    <div className={`bg-card border rounded-xl overflow-hidden ${isCancelled ? "border-red-200 opacity-80" : "border-border"}`}>
-      {/* Group header */}
+    <div
+      className="card-warm overflow-hidden"
+      style={isCancelled ? { borderColor: "var(--danger)", opacity: 0.85 } : undefined}
+    >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-4 flex items-start gap-3 hover:bg-muted/20 transition-colors text-left"
+        className="w-full px-4 py-4 flex items-start gap-3 hover:bg-[var(--surface-2)] transition-colors text-left"
       >
         {/* Time block */}
-        <div className={`rounded-xl px-3 py-2 flex flex-col items-center min-w-[60px] flex-shrink-0 ${isCancelled ? "bg-red-50" : isEarly ? "bg-teal-50" : "bg-primary/8"}`}>
-          <span className={`${isCancelled ? "text-red-400" : isEarly ? "text-teal-600" : "text-primary/60"}`} style={{ fontSize: "0.62rem", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+        <div
+          className="flex flex-col items-center flex-shrink-0"
+          style={{ width: 66, background: timeBlockBg, borderRadius: 9, padding: "8px 6px" }}
+        >
+          <span
+            className="text-muted-foreground"
+            style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.07em" }}
+          >
             {group.type === "arrival" ? "ARR" : "DEP"}
           </span>
-          {/* Scheduled (struck through only when actual time is different) */}
           <span
-            className={`${isCancelled ? "text-red-400 line-through" : (isDelayed || isEarly) && timeChanged ? "text-muted-foreground line-through" : "text-primary"}`}
-            style={{ fontSize: "1rem", fontWeight: 700, lineHeight: 1.15 }}
+            style={{
+              fontSize: 17,
+              fontWeight: 700,
+              lineHeight: 1.15,
+              color: timeChanged && (isDelayed || isEarly) ? "var(--muted-foreground)" : "var(--head)",
+              textDecoration: (isCancelled || (timeChanged && (isDelayed || isEarly))) ? "line-through" : "none",
+            }}
           >
             {group.scheduledTime}
           </span>
-          {/* Actual time — only show when it differs from scheduled */}
           {(isDelayed || isEarly) && timeChanged && (
-            <span className={isEarly ? "text-teal-600" : "text-amber-600"} style={{ fontSize: "0.95rem", fontWeight: 700, lineHeight: 1.15 }}>
+            <span
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                lineHeight: 1.15,
+                color: isEarly ? "var(--info)" : "var(--warn)",
+              }}
+            >
               {group.actualTime}
             </span>
           )}
-          {/* Diff badge */}
           {timeDiff && (
             <span
-              className={isEarly ? "text-teal-700 bg-teal-100 rounded px-1 mt-0.5" : "text-amber-600 bg-amber-100 rounded px-1 mt-0.5"}
-              style={{ fontSize: "0.62rem", fontWeight: 600 }}
+              className={`badge-pill ${isEarly ? "badge--info" : "badge--warn"} mt-0.5`}
+              style={{ fontSize: 10, padding: "1px 6px" }}
             >
               {timeDiff}
             </span>
@@ -116,54 +140,56 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
         {/* Flight info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-foreground" style={{ fontSize: "0.92rem", fontWeight: 700 }}>{group.flightNumber}</span>
-            <span className="text-muted-foreground" style={{ fontSize: "0.82rem" }}>{group.airline}</span>
-            <span className="bg-secondary text-secondary-foreground border border-border px-1.5 py-0.5 rounded" style={{ fontSize: "0.68rem", fontWeight: 600, letterSpacing: "0.04em" }}>
-              {group.terminal}
-            </span>
-            <span className={`flex items-center gap-1 border px-1.5 py-0.5 rounded ${status.color}`} style={{ fontSize: "0.68rem", fontWeight: 600 }}>
+            <span className="text-[var(--head)] text-[15px] font-bold">{group.flightNumber}</span>
+            <span className="text-muted-foreground text-[13px]">{group.airline}</span>
+            <span className="tag-chip">{group.terminal}</span>
+            <span className={`badge-pill ${status.badge}`}>
               {status.icon}{status.label}
             </span>
           </div>
 
-          {/* Origin / Destination */}
-          <div className="flex items-center gap-1.5 mt-0.5">
+          <div className="flex items-center gap-1.5 mt-1">
             {group.type === "arrival" && group.origin && (
-              <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.78rem" }}>
+              <span className="text-muted-foreground flex items-center gap-1 text-[12.5px]">
                 <PlaneLanding className="w-3.5 h-3.5 flex-shrink-0" />
-                From: <span className="text-foreground font-medium">{group.origin}</span>
+                From: <span className="text-[var(--head)] font-medium">{group.origin}</span>
               </span>
             )}
             {group.type === "departure" && group.destination && (
-              <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.78rem" }}>
+              <span className="text-muted-foreground flex items-center gap-1 text-[12.5px]">
                 <PlaneTakeoff className="w-3.5 h-3.5 flex-shrink-0" />
-                To: <span className="text-foreground font-medium">{group.destination}</span>
+                To: <span className="text-[var(--head)] font-medium">{group.destination}</span>
               </span>
             )}
           </div>
 
-          {/* Scheduled vs Actual row */}
           <div className="flex items-center gap-4 mt-1.5 flex-wrap">
-            <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.75rem" }}>
+            <span className="text-muted-foreground flex items-center gap-1 text-[12px]">
               <Clock className="w-3 h-3" />
-              Scheduled: <span className="text-foreground font-medium">{group.scheduledTime}</span>
+              Scheduled: <span className="text-[var(--head)] font-medium">{group.scheduledTime}</span>
             </span>
-            <span className={`flex items-center gap-1 ${isDelayed ? "text-amber-600 font-semibold" : isEarly ? "text-teal-600 font-semibold" : "text-muted-foreground"}`} style={{ fontSize: "0.75rem" }}>
+            <span
+              className="flex items-center gap-1 text-[12px]"
+              style={{ color: isDelayed ? "var(--warn)" : isEarly ? "var(--info)" : "var(--muted-foreground)" }}
+            >
               <Clock className="w-3 h-3" />
-              Actual: <span className={`font-medium ${isDelayed ? "text-amber-700" : isEarly ? "text-teal-700" : "text-foreground"}`}>{isCancelled ? "—" : group.actualTime}</span>
-              {timeDiff && <span className={isEarly ? "text-teal-600" : "text-amber-600"}>({timeDiff} {isEarly ? "early" : "delay"})</span>}
+              Actual: <span className="font-medium">{isCancelled ? "—" : group.actualTime}</span>
+              {timeDiff && <span>({timeDiff} {isEarly ? "early" : "delay"})</span>}
             </span>
           </div>
 
-          {/* Pax summary */}
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.75rem" }}>
+          <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            <span className="text-muted-foreground flex items-center gap-1 text-[12px]">
               <Users className="w-3.5 h-3.5" />
               {totalPassengers} passengers · {passengers.length} bookings
             </span>
             <span
-              className={`flex items-center gap-1 ${assignedCount === passengers.length && passengers.length > 0 ? "text-green-600" : "text-amber-600"}`}
-              style={{ fontSize: "0.75rem" }}
+              className="flex items-center gap-1 text-[12px] font-semibold"
+              style={{
+                color: assignedCount === passengers.length && passengers.length > 0
+                  ? "var(--ok)"
+                  : "var(--warn)",
+              }}
             >
               {assignedCount === passengers.length && passengers.length > 0
                 ? <CheckCircle2 className="w-3.5 h-3.5" />
@@ -173,12 +199,13 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
           </div>
         </div>
 
-        {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />}
+        {expanded
+          ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />
+          : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-1" />}
       </button>
 
-      {/* Passenger rows */}
       {expanded && (
-        <div className="border-t border-border divide-y divide-border/60">
+        <div className="border-t border-[var(--line)] divide-y divide-[var(--line-soft)]">
           {passengers.length === 0 ? (
             <p className="px-4 py-4 text-muted-foreground text-sm">No passengers registered for this flight.</p>
           ) : (
@@ -218,36 +245,39 @@ function PassengerRow({
   const assignedSarthi = sarthis.find((s) => s.id === assignedSarthiId);
 
   return (
-    <div className={`px-4 py-3 ${assignedSarthiId ? "bg-green-50/40" : ""}`}>
+    <div
+      className="px-4 py-3"
+      style={assignedSarthiId ? { background: "var(--ok-tint)" } : undefined}
+    >
       <div className="flex items-start gap-3">
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-          <User className="w-4 h-4 text-primary" />
+        <div className="avatar-warm avatar-warm--blue" style={{ width: 32, height: 32 }}>
+          <User className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-foreground" style={{ fontSize: "0.88rem", fontWeight: 600 }}>{passenger.name}</span>
-            <span className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${passenger.passengerCount > 1 ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"}`} style={{ fontSize: "0.72rem", fontWeight: 500 }}>
+            <span className="text-[var(--head)] text-[14px] font-semibold">{passenger.name}</span>
+            <span className={`badge-pill ${passenger.passengerCount > 1 ? "badge--info" : "badge--neutral"}`}>
               <Users className="w-3 h-3" />{passenger.passengerCount}
             </span>
             {passenger.wheelchairRequired && (
-              <span className="flex items-center gap-0.5 bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded" style={{ fontSize: "0.72rem", fontWeight: 500 }}>
+              <span className="badge-pill badge--accent">
                 <Accessibility className="w-3 h-3" />Stroller
               </span>
             )}
             {passenger.carSeatRequired && (
-              <span className="flex items-center gap-0.5 bg-pink-100 text-pink-700 px-1.5 py-0.5 rounded" style={{ fontSize: "0.72rem", fontWeight: 500 }}>
+              <span className="badge-pill badge--violet">
                 <Baby className="w-3 h-3" />Car Seat
               </span>
             )}
           </div>
           <div className="flex items-center gap-3 mt-1 flex-wrap">
             {passenger.phone && (
-              <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.78rem" }}>
+              <span className="text-muted-foreground flex items-center gap-1 text-[12.5px]">
                 <Phone className="w-3 h-3" />{passenger.phone}
               </span>
             )}
             {passenger.mandal && (
-              <span className="text-muted-foreground flex items-center gap-1" style={{ fontSize: "0.78rem" }}>
+              <span className="text-muted-foreground flex items-center gap-1 text-[12.5px]">
                 <MapPin className="w-3 h-3" />{passenger.mandal}
               </span>
             )}
@@ -255,14 +285,17 @@ function PassengerRow({
           <div className="mt-2 flex items-center gap-2">
             {assignedSarthi ? (
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-green-100 text-green-800 px-2.5 py-1 rounded-lg" style={{ fontSize: "0.78rem", fontWeight: 500 }}>
+                <span className="badge-pill badge--ok">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {assignedSarthi.name}
                   {assignedSarthi.phone && (
-                    <span className="text-green-700/80"> · {assignedSarthi.phone}</span>
+                    <span style={{ opacity: 0.75 }}> · {assignedSarthi.phone}</span>
                   )}
-                </div>
-                <button onClick={onUnassign} className="text-muted-foreground hover:text-destructive transition-colors" style={{ fontSize: "0.75rem" }}>
+                </span>
+                <button
+                  onClick={onUnassign}
+                  className="text-muted-foreground hover:text-[var(--danger)] transition-colors text-[12px]"
+                >
                   Remove
                 </button>
               </div>
@@ -270,8 +303,8 @@ function PassengerRow({
               <select
                 defaultValue=""
                 onChange={(e) => e.target.value && onAssign(e.target.value)}
-                className="px-2.5 py-1 rounded-lg border border-border bg-input-background text-foreground"
-                style={{ fontSize: "0.8rem" }}
+                className="input-warm"
+                style={{ fontSize: 13, padding: "7px 10px", width: "auto" }}
               >
                 <option value="" disabled>Assign Sarthi…</option>
                 {sarthis.map((s) => {
@@ -285,6 +318,14 @@ function PassengerRow({
               </select>
             )}
           </div>
+        </div>
+        <div className="flex-shrink-0">
+          <ShareLink
+            trackingToken={passenger.trackingToken}
+            passengerName={passenger.name}
+            phone={passenger.phone}
+            email={passenger.email}
+          />
         </div>
       </div>
     </div>

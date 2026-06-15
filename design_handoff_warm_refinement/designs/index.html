@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SPS Transportation — Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="sps-theme.css" />
+<style>
+  .hub-hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line);
+    background: radial-gradient(70% 60% at 88% -10%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), var(--surface); }
+  .hub-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--accent), var(--primary)); }
+  .hub-hero .inner { padding: 56px 0 48px; }
+  .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent-strong); margin-bottom: 16px; }
+  .hub-hero h1 { font-size: 42px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.08; max-width: 18ch; }
+  .hub-hero p.lead { font-size: 17px; color: var(--ink); max-width: 60ch; margin-top: 16px; }
+  .theme-toggle { position: fixed; top: 18px; right: 18px; z-index: 5; }
+
+  .scards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .scard { display: flex; flex-direction: column; text-decoration: none; color: inherit;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden;
+    box-shadow: var(--sh-1); transition: transform .16s, box-shadow .16s, border-color .16s; }
+  .scard:hover { transform: translateY(-3px); box-shadow: var(--sh-3); border-color: var(--accent-line); }
+  .scard .preview { height: 150px; position: relative; overflow: hidden; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; }
+  .scard .preview .emblem { width: 60px; height: 60px; border-radius: 18px; display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: var(--sh-2); }
+  /* faux ui texture */
+  .tex { position: absolute; inset: 0; opacity: 0.5; }
+  .tex .b { position: absolute; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); }
+  .scard .body { padding: 18px 20px 20px; }
+  .scard .role { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .scard h3 { font-size: 18px; margin: 5px 0 7px; }
+  .scard p { font-size: 13.5px; color: var(--ink); margin: 0; }
+  .scard .open { margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--primary); }
+
+  .doc-row { display: flex; align-items: center; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; box-shadow: var(--sh-1); text-decoration: none; color: inherit; transition: border-color .15s, transform .12s; }
+  .doc-row:hover { border-color: var(--accent-line); transform: translateX(2px); }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px; }
+  .legend .li { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); }
+  .dotc { width: 12px; height: 12px; border-radius: 50%; }
+</style>
+</head>
+<body>
+  <button class="iconbtn theme-toggle" data-theme-icon onclick="SPSUI.toggleTheme()" title="Toggle theme"></button>
+
+  <div class="hub-hero">
+    <div class="container inner">
+      <div class="row gap-3" style="margin-bottom:22px">
+        <div class="brand-mark" id="mark"></div>
+        <div><div style="font-size:14px;font-weight:600;color:var(--head)">Suhradam Parivar Shibir</div>
+          <div style="font-size:12px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)">Airport Transportation</div></div>
+      </div>
+      <p class="eyebrow">Warm Refinement · Sarthi-First</p>
+      <h1>A warmer, clearer transportation app.</h1>
+      <p class="lead">The redesign carries the temple-warm Harisumiran palette across every screen, scales up for the volunteers who use it day-of, and gives the operation one consistent visual language. Explore each screen below.</p>
+      <div class="legend">
+        <div class="li"><span class="dotc" style="background:var(--accent)"></span> Terracotta · brand warmth</div>
+        <div class="li"><span class="dotc" style="background:var(--primary)"></span> Blue · interactive actions</div>
+        <div class="li"><span class="dotc" style="background:var(--ok)"></span> Green · done / assigned</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding:40px 28px 24px">
+    <h2 style="font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:18px">The screens</h2>
+    <div class="scards" id="scards"></div>
+  </div>
+
+  <div class="container" style="padding:8px 28px 64px">
+    <h2 style="font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:24px 0 14px">Strategy</h2>
+    <a class="doc-row" href="Redesign Guide.html">
+      <div class="brand-mark" style="background:var(--primary)" id="docmark"></div>
+      <div class="grow"><div class="name" style="font-size:16px">Redesign Guide</div>
+        <div class="muted" style="font-size:13.5px">Context, the design-system audit, and the three directions we chose between.</div></div>
+      <span id="docarrow" class="muted"></span>
+    </a>
+  </div>
+
+  <script src="sps-ui.js"></script>
+  <script>
+    SPSUI.initTheme();
+    const { icon } = SPSUI;
+    SPSUI.setTheme(document.documentElement.getAttribute("data-theme"));
+    document.getElementById("mark").innerHTML = icon("sparkle", { s: 22 });
+    document.getElementById("docmark").innerHTML = icon("grid", { s: 20 });
+    document.getElementById("docarrow").innerHTML = icon("cright", { s: 18 });
+
+    const texByKind = {
+      list: `<div class="tex"><div class="b" style="left:18%;right:18%;top:24px;height:14px"></div><div class="b" style="left:18%;right:40%;top:46px;height:8px"></div><div class="b" style="left:18%;right:18%;top:70px;height:30px"></div><div class="b" style="left:18%;right:18%;top:108px;height:30px"></div></div>`,
+      board: `<div class="tex"><div class="b" style="left:10%;right:10%;top:20px;height:12px"></div><div class="b" style="left:10%;width:60px;top:42px;height:42px"></div><div class="b" style="left:34%;right:10%;top:42px;height:42px"></div><div class="b" style="left:10%;width:60px;top:94px;height:42px"></div><div class="b" style="left:34%;right:10%;top:94px;height:42px"></div></div>`,
+      form: `<div class="tex"><div class="b" style="left:14%;right:14%;top:22px;height:10px"></div><div class="b" style="left:14%;width:38%;top:42px;height:30px"></div><div class="b" style="left:54%;right:14%;top:42px;height:30px"></div><div class="b" style="left:14%;right:14%;top:82px;height:14px"></div></div>`,
+      auth: `<div class="tex"><div class="b" style="left:30%;right:30%;top:30px;height:40px;border-radius:14px"></div><div class="b" style="left:22%;right:22%;top:84px;height:22px"></div></div>`,
+    };
+    const SCREENS = [
+      { href: "Login.html", role: "Entry", title: "Login", ic: "shield", color: "var(--accent)", tex: "auth", desc: "Warm sign-in with a role chooser that routes to the right dashboard." },
+      { href: "Sarthi Pickup Tool.html", role: "Sarthi · mobile", title: "Pickup Tool", ic: "car", color: "var(--accent)", tex: "list", desc: "The day-of field tool: timeline of pickups, one-tap call & navigate, big complete." },
+      { href: "Transport Admin.html", role: "Transport Admin", title: "Operations", ic: "grid", color: "var(--primary)", tex: "board", desc: "Bhaktos dashboard, flight groups, Sarthi assignment, roster & fleet." },
+      { href: "Super Admin.html", role: "Super Admin", title: "Admin Panel", ic: "shield", color: "var(--violet)", tex: "form", desc: "Users & roles, editable SMS / email templates, and vehicle management." },
+    ];
+    document.getElementById("scards").innerHTML = SCREENS.map((s) => `
+      <a class="scard" href="${s.href}">
+        <div class="preview" style="background:color-mix(in srgb, ${s.color} 10%, var(--surface))">
+          ${texByKind[s.tex]}
+          <div class="emblem" style="background:${s.color};position:relative">${icon(s.ic, { s: 26 })}</div>
+        </div>
+        <div class="body">
+          <div class="role">${s.role}</div>
+          <h3>${s.title}</h3>
+          <p>${s.desc}</p>
+          <span class="open">Open screen ${icon("cright", { s: 14 })}</span>
+        </div>
+      </a>`).join("");
+  </script>
+</body>
+</html>

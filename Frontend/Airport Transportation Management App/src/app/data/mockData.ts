@@ -33,6 +33,7 @@ export interface Passenger {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   mandal: string;
   passengerCount: number;
   destination: string;
@@ -40,6 +41,7 @@ export interface Passenger {
   carSeatRequired: boolean;
   flightGroup: string;
   assignedDriverId?: string;
+  trackingToken?: string | null;
 }
 
 export type FlightStatus = "on_time" | "delayed" | "early" | "cancelled" | "landed" | "departed";
@@ -60,13 +62,9 @@ export interface FlightGroup {
 }
 
 export const registeredUsers: User[] = [
-  { id: "u1", name: "Ramesh Patel", email: "ramesh.patel@gmail.com", role: "super_admin" },
-  { id: "u2", name: "Sunita Sharma", email: "sunita.sharma@gmail.com", role: "transportation_admin" },
-  { id: "u3", name: "Vijay Desai", email: "vijay.desai@gmail.com", role: "transportation_admin" },
-  { id: "u4", name: "Mahesh Kumar", email: "mahesh.kumar@gmail.com", role: "driver" },
-  { id: "u5", name: "Rajesh Mehta", email: "rajesh.mehta@gmail.com", role: "driver" },
-  { id: "u6", name: "Suresh Joshi", email: "suresh.joshi@gmail.com", role: "driver" },
-  { id: "u7", name: "Divyang Parmar", email: "divyang.parmar1407@gmail.com", role: "super_admin" },
+  { id: "u1", name: "Ronak Patel", email: "ronak@live.com", role: "super_admin" },
+  { id: "u2", name: "Tarak Patel", email: "tarak.patel369@gmail.com", role: "transportation_admin" },
+  { id: "u3", name: "Parth Patel", email: "parthpatel737@gmail.com", role: "driver" },
 ];
 
 export const drivers: Driver[] = [

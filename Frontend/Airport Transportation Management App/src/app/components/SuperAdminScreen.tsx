@@ -1,7 +1,8 @@
-import { useState, useEffect, type ReactNode } from "react";
-import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle, Moon, Sun } from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle, Moon, Sun, Sparkles, Search, MapPin } from "lucide-react";
 import { registeredUsers, type Role, type User } from "../data/mockData";
 import { useTheme } from "../hooks/useTheme";
+import { MandalsTab } from "./MandalsTab";
 
 import { API_BASE } from "../lib/api";
 const ADMIN_USERS_API = `${API_BASE}/admin-users`;
@@ -10,8 +11,14 @@ const EMAIL_API       = `${API_BASE}/email`;
 const TEMPLATES_API   = `${API_BASE}/templates`;
 const VEHICLES_API    = `${API_BASE}/vehicles`;
 
+import { RoleSwitcher } from "./RoleSwitcher";
+import type { AvailableRole } from "../App";
+
 interface Props {
   onBack: () => void;
+  currentRole?: Role;
+  availableRoles?: AvailableRole[];
+  onSwitchRole?: (role: Role) => void;
 }
 
 const roleLabels: Record<Role, string> = {
@@ -20,19 +27,13 @@ const roleLabels: Record<Role, string> = {
   driver: "Sarthi",
 };
 
-const roleColors: Record<Role, string> = {
-  super_admin: "bg-purple-100 text-purple-700 border border-purple-200",
-  transportation_admin: "bg-blue-100 text-blue-700 border border-blue-200",
-  driver: "bg-green-100 text-green-700 border border-green-200",
+const roleBadge: Record<Role, string> = {
+  super_admin: "badge--violet",
+  transportation_admin: "badge--info",
+  driver: "badge--ok",
 };
 
-const accessDescriptions: Record<Role, string> = {
-  super_admin: "Full access to manage users, roles, and all transportation operations across the platform.",
-  transportation_admin: "Access to manage flight groups, assign drivers, and coordinate passenger transport operations.",
-  driver: "Access to view your assigned passenger pickups and manage your transportation tasks.",
-};
-
-type AdminTab = "users" | "templates" | "vehicles";
+type AdminTab = "users" | "templates" | "vehicles" | "mandals";
 type TemplateChannel = "email" | "sms";
 
 interface NotificationTemplate {
@@ -115,10 +116,9 @@ interface EmailPreviewData {
   role: Role;
 }
 
-export function SuperAdminScreen({ onBack }: Props) {
+export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitchRole }: Props) {
   const { isDark, toggle } = useTheme();
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
-  // Seed with super_admin mock only; TA and Sarthi users load from MongoDB.
   const [users, setUsers] = useState<User[]>(registeredUsers.filter((u) => u.role !== "transportation_admin" && u.role !== "driver"));
   const [showAddForm, setShowAddForm] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -145,7 +145,6 @@ export function SuperAdminScreen({ onBack }: Props) {
     return matchSearch && matchRole;
   });
 
-  // Load persisted Transportation Admin and Sarthi users from MongoDB on mount.
   useEffect(() => {
     Promise.allSettled([
       fetch(`${ADMIN_USERS_API}/`).then((r) => r.json()),
@@ -153,7 +152,15 @@ export function SuperAdminScreen({ onBack }: Props) {
     ]).then(([taResult, sarthiResult]) => {
       const ta: User[]     = taResult.status     === "fulfilled" ? taResult.value     : [];
       const sarthi: User[] = sarthiResult.status === "fulfilled" ? sarthiResult.value : [];
-      setUsers((prev) => [...prev, ...ta, ...sarthi]);
+      setUsers((prev) => {
+        const seen = new Set<string>();
+        return [...prev, ...ta, ...sarthi].filter((u) => {
+          const key = u.email.toLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      });
     });
   }, []);
 
@@ -169,7 +176,6 @@ export function SuperAdminScreen({ onBack }: Props) {
     setTimeout(() => setToast(null), 300);
   };
 
-  // When the Email Preview modal opens, fetch the saved template and substitute variables.
   useEffect(() => {
     if (!emailPreview) { setPreviewContent(null); return; }
 
@@ -283,7 +289,38 @@ export function SuperAdminScreen({ onBack }: Props) {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
   };
 
+  const handleRename = async (user: User, patch: { name?: string; phone?: string }): Promise<{ ok: boolean; error?: string }> => {
+    if (!/^[0-9a-f]{24}$/.test(user.id)) {
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...patch } : u)));
+      return { ok: true };
+    }
+    const url =
+      user.role === "driver" ? `${SARTHI_API}/${user.id}` :
+      `${ADMIN_USERS_API}/${user.id}`;
+    try {
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, error: body.detail || "Already in use" };
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        return { ok: false, error: body.error || `HTTP ${res.status}` };
+      }
+      const updated = await res.json();
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...(updated.name ? { name: updated.name } : {}), ...(updated.phone !== undefined ? { phone: updated.phone } : {}) } : u)));
+      return { ok: true };
+    } catch {
+      return { ok: false, error: "Network error" };
+    }
+  };
+
   const counts = {
+    total: users.length,
     super_admin: users.filter((u) => u.role === "super_admin").length,
     transportation_admin: users.filter((u) => u.role === "transportation_admin").length,
     driver: users.filter((u) => u.role === "driver").length,
@@ -293,305 +330,342 @@ export function SuperAdminScreen({ onBack }: Props) {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top nav */}
-      <div className="bg-card sticky top-0 z-10 flex items-center gap-3 px-8" style={{ height: "76px", borderBottom: "1px solid var(--border)", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
-        <div>
-          <h1 style={{ fontSize: "16px", fontWeight: 600, color: "#173D61", lineHeight: 1.2 }}>Super Admin Panel</h1>
-          <p style={{ fontSize: "13px", color: "#999999" }}>Manage roles and access</p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5" style={{ color: "#0C71C3" }} />
-          <button onClick={toggle} className="p-2 rounded-lg hover:bg-muted transition-colors" title="Toggle theme">
-            {isDark ? <Sun className="w-5 h-5 text-muted-foreground" /> : <Moon className="w-5 h-5 text-muted-foreground" />}
+      {/* Top bar */}
+      <div className="topbar">
+        <div className="max-w-[1240px] w-full mx-auto px-7 flex items-center gap-3.5">
+          <div className="brand-mark">
+            <Sparkles className="w-[22px] h-[22px]" strokeWidth={2.2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[15px] font-semibold text-[var(--head)] leading-tight">Super Admin Panel</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-[0.08em]">Manage roles and access</p>
+          </div>
+          <div className="iconbtn" title="Super Admin">
+            <ShieldCheck className="w-[18px] h-[18px] text-[var(--violet)]" />
+          </div>
+          {currentRole && availableRoles && onSwitchRole && (
+            <RoleSwitcher current={currentRole} available={availableRoles} onSwitch={onSwitchRole} />
+          )}
+          <button onClick={toggle} className="iconbtn" title="Toggle theme">
+            {isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
           </button>
-          <button onClick={onBack} className="p-2 rounded transition-colors hover:bg-secondary" style={{ color: "#494D52" }} title="Logout">
-            <LogOut className="w-5 h-5" />
+          <button onClick={onBack} className="iconbtn" title="Sign out">
+            <LogOut className="w-[18px] h-[18px]" />
           </button>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-8 py-8 space-y-6">
-        {/* Stats row — always visible */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard icon={<ShieldCheck className="w-4 h-4 text-purple-600" />} label="Super Admins" count={counts.super_admin} color="bg-purple-50 border-purple-100" />
-          <StatCard icon={<Users className="w-4 h-4 text-blue-600" />} label="Transport Admins" count={counts.transportation_admin} color="bg-blue-50 border-blue-100" />
-          <StatCard icon={<Truck className="w-4 h-4 text-green-600" />} label="Sarthis" count={counts.driver} color="bg-green-50 border-green-100" />
-        </div>
-
-        {/* Tab bar */}
-        <div className="flex border-b border-border overflow-x-auto scrollbar-hide">
+      {/* Tab bar */}
+      <div className="tabbar">
+        <div className="max-w-[1240px] w-full mx-auto px-7 flex gap-0.5 overflow-x-auto scrollbar-hide">
           {([
             { id: "users" as AdminTab, label: "Users", icon: <Users className="w-4 h-4" /> },
             { id: "templates" as AdminTab, label: "Notification Templates", icon: <Bell className="w-4 h-4" /> },
             { id: "vehicles" as AdminTab, label: "Vehicles", icon: <Truck className="w-4 h-4" /> },
+            { id: "mandals" as AdminTab, label: "Mandals", icon: <MapPin className="w-4 h-4" /> },
           ]).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex items-center gap-2 transition-colors flex-shrink-0 whitespace-nowrap"
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                color: activeTab === tab.id ? "#0C71C3" : "#494D52",
-                borderTop: "none",
-                borderLeft: "none",
-                borderRight: "none",
-                borderBottom: activeTab === tab.id ? "2px solid #0C71C3" : "2px solid transparent",
-                marginBottom: "-1px",
-                background: "none",
-                cursor: "pointer",
-                padding: "10px 16px",
-              }}
+              className={`tab ${activeTab === tab.id ? "active" : ""}`}
             >
               {tab.icon}
               {tab.label}
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="max-w-[1240px] mx-auto px-7 py-7 space-y-6">
+        {activeTab === "users" && (
+          <>
+            {/* Stats — 4 cards */}
+            <div className="stats grid">
+              <StatCard
+                tone="accent"
+                icon={<Users className="w-[18px] h-[18px]" />}
+                label="Total Users"
+                value={String(counts.total)}
+                sub="across all roles"
+              />
+              <StatCard
+                tone="violet"
+                icon={<ShieldCheck className="w-[18px] h-[18px]" />}
+                label="Super Admins"
+                value={String(counts.super_admin)}
+                sub="full access"
+              />
+              <StatCard
+                tone="info"
+                icon={<Users className="w-[18px] h-[18px]" />}
+                label="Transport Admins"
+                value={String(counts.transportation_admin)}
+                sub="coordinators"
+              />
+              <StatCard
+                tone="ok"
+                icon={<Truck className="w-[18px] h-[18px]" />}
+                label="Sarthis"
+                value={String(counts.driver)}
+                sub="field drivers"
+              />
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input-warm"
+                  style={{ paddingLeft: 36 }}
+                />
+              </div>
+              {/* Segmented role filter */}
+              <div
+                className="flex items-center gap-0.5 p-1 rounded-[var(--r-sm)]"
+                style={{ background: "var(--surface-3)", border: "1px solid var(--line)" }}
+              >
+                {(["all", "super_admin", "transportation_admin", "driver"] as (Role | "all")[]).map((r) => {
+                  const labels: Record<Role | "all", string> = {
+                    all: "All",
+                    super_admin: "Super",
+                    transportation_admin: "Transport",
+                    driver: "Sarthi",
+                  };
+                  const active = filterRole === r;
+                  return (
+                    <button
+                      key={r}
+                      onClick={() => setFilterRole(r)}
+                      className="transition-all"
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        padding: "6px 11px",
+                        borderRadius: 6,
+                        background: active ? "var(--surface)" : "transparent",
+                        color: active ? "var(--head)" : "var(--muted-foreground)",
+                        boxShadow: active ? "var(--sh-1)" : "none",
+                      }}
+                    >
+                      {labels[r]}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="btn btn--accent"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add User
+              </button>
+            </div>
+
+            {/* Add user form */}
+            {showAddForm && (
+              <div
+                className="space-y-4"
+                style={{
+                  border: "1px dashed var(--accent)",
+                  background: "var(--accent-tint)",
+                  padding: 20,
+                  borderRadius: "var(--r)",
+                }}
+              >
+                <h3 className="text-[15px] font-semibold text-[var(--head)]">Add New User</h3>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block mb-1.5">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh Patel"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      className="input-warm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="name@gmail.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="input-warm"
+                    />
+                  </div>
+                  {(newRole === "driver" || newRole === "transportation_admin") && (
+                    <div className="sm:col-span-2">
+                      <label className="block mb-1.5">Phone Number</label>
+                      <input
+                        type="tel"
+                        placeholder="+91 98765 43210"
+                        value={newPhone}
+                        onChange={(e) => setNewPhone(e.target.value)}
+                        className="input-warm"
+                      />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block mb-1.5">Assign Role</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {(["transportation_admin", "driver"] as Role[]).map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setNewRole(r)}
+                        className="transition-colors"
+                        style={{
+                          padding: "8px 14px",
+                          borderRadius: "var(--r-sm)",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          border: `1.5px solid ${newRole === r ? "var(--accent)" : "var(--line)"}`,
+                          background: newRole === r ? "var(--accent)" : "var(--surface)",
+                          color: newRole === r ? "#fff" : "var(--head)",
+                        }}
+                      >
+                        {roleLabels[r]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {showPreviewNote && (
+                  <div className="flex items-start gap-2 px-3 py-2.5 rounded-[var(--r-sm)]" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}>
+                    <Mail className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-[var(--primary)]" />
+                    <p className="text-[13px] text-[var(--head)]">
+                      An invitation email will be sent to{" "}
+                      <span className="font-semibold">{newEmail}</span>{" "}
+                      granting them access as{" "}
+                      <span className="font-semibold">{roleLabels[newRole]}</span>.
+                    </p>
+                  </div>
+                )}
+
+                {addError && (
+                  <div className="px-3 py-2.5 space-y-2 rounded-[var(--r-sm)]" style={{ background: "var(--danger-tint)", border: "1px solid var(--danger)" }}>
+                    <p className="text-sm text-[var(--danger)]">{addError}</p>
+                    {conflictId && (
+                      <button
+                        onClick={async () => {
+                          await fetch(`${conflictId.apiUrl}/${conflictId.id}`, { method: "DELETE" });
+                          setAddError("");
+                          setConflictId(null);
+                          setUsers((prev) => prev.filter((u) => u.id !== conflictId.id));
+                          handleAdd();
+                        }}
+                        className="btn btn--danger btn--sm"
+                      >
+                        Remove existing record &amp; re-add
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewRole("driver"); setAddError(""); setConflictId(null); }}
+                    className="btn btn--ghost"
+                    disabled={isSending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAdd}
+                    disabled={!newEmail || !newName || isSending || ((newRole === "driver" || newRole === "transportation_admin") && !newPhone)}
+                    className="btn btn--accent"
+                  >
+                    {isSending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Sending…
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4" />
+                        Add &amp; send invite
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteError && (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-[var(--r-sm)]" style={{ background: "var(--danger-tint)", border: "1px solid var(--danger)" }}>
+                <p className="text-sm text-[var(--danger)]">{deleteError}</p>
+              </div>
+            )}
+
+            {/* User list */}
+            <div className="card-warm overflow-hidden">
+              <div className="px-5 py-3 border-b border-[var(--line)] flex items-center justify-between">
+                <span className="text-sm font-semibold text-[var(--head)]">
+                  {filtered.length} user{filtered.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {filtered.length === 0 ? (
+                <div className="px-4 py-10 text-center text-muted-foreground text-sm">
+                  No users found
+                </div>
+              ) : (
+                <ul className="divide-y divide-[var(--line-soft)]">
+                  {filtered.map((user) => (
+                    <UserRow
+                      key={user.id}
+                      user={user}
+                      roleLabel={roleLabels[user.role]}
+                      roleBadgeClass={roleBadge[user.role]}
+                      onRename={(patch) => handleRename(user, patch)}
+                      onDelete={() => handleDelete(user.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
 
         {activeTab === "templates" && <TemplatesTab />}
 
         {activeTab === "vehicles" && <VehiclesTab />}
 
-        {activeTab === "users" && <>
-        {/* Search + filter + add */}
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            type="text"
-            placeholder="Search by name or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 text-foreground placeholder:text-muted-foreground focus:outline-none"
-            style={{ padding: "12px 16px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", backgroundColor: "#FFFFFF" }}
-          />
-          <select
-            value={filterRole}
-            onChange={(e) => setFilterRole(e.target.value as Role | "all")}
-            className="text-foreground focus:outline-none"
-            style={{ padding: "12px 16px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", backgroundColor: "#FFFFFF" }}
-          >
-            <option value="all">All Roles</option>
-            <option value="super_admin">Super Admin</option>
-            <option value="transportation_admin">Transport Admin</option>
-            <option value="driver">Sarthi</option>
-          </select>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-2 transition-opacity hover:opacity-90"
-            style={{ padding: "12px 24px", borderRadius: "4px", fontSize: "14px", fontWeight: 600, backgroundColor: "#0C71C3", color: "#FFFFFF", border: "none", whiteSpace: "nowrap" }}
-          >
-            <UserPlus className="w-4 h-4" />
-            Add User
-          </button>
-        </div>
-
-        {/* Add user form */}
-        {showAddForm && (
-          <div className="bg-card border border-border p-6 space-y-4" style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#173D61" }}>Add New User</h3>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-2" style={{ fontSize: "14px", fontWeight: 600, color: "#494D52", lineHeight: "14px" }}>Full Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ramesh Patel"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="w-full text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  style={{ padding: "12px 16px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", backgroundColor: "#FFFFFF" }}
-                />
-              </div>
-              <div>
-                <label className="block mb-2" style={{ fontSize: "14px", fontWeight: 600, color: "#494D52", lineHeight: "14px" }}>Email Address</label>
-                <input
-                  type="email"
-                  placeholder="name@gmail.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  style={{ padding: "12px 16px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", backgroundColor: "#FFFFFF" }}
-                />
-              </div>
-            </div>
-            {(newRole === "driver" || newRole === "transportation_admin") && (
-              <div className="sm:col-span-2">
-                <label className="block mb-2" style={{ fontSize: "14px", fontWeight: 600, color: "#494D52", lineHeight: "14px" }}>Phone Number</label>
-                <input
-                  type="tel"
-                  placeholder="+91 98765 43210"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  style={{ padding: "12px 16px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", backgroundColor: "#FFFFFF" }}
-                />
-              </div>
-            )}
-            <div>
-              <label className="block mb-2" style={{ fontSize: "14px", fontWeight: 600, color: "#494D52", lineHeight: "14px" }}>Assign Role</label>
-              <div className="flex gap-2 flex-wrap">
-                {(["transportation_admin", "driver"] as Role[]).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setNewRole(r)}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: "4px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      border: newRole === r ? "2px solid #0C71C3" : "2px solid #CCCCCC",
-                      backgroundColor: newRole === r ? "#0C71C3" : "#FFFFFF",
-                      color: newRole === r ? "#FFFFFF" : "#494D52",
-                    }}
-                  >
-                    {roleLabels[r]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Preview note */}
-            {showPreviewNote && (
-              <div className="flex items-start gap-2 px-3 py-2.5" style={{ backgroundColor: "#FEF2E6", border: "1px solid #CCCCCC", borderRadius: "4px" }}>
-                <Mail className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" style={{ color: "#0C71C3" }} />
-                <p style={{ fontSize: "13px", color: "#494D52" }}>
-                  An invitation email will be sent to{" "}
-                  <span style={{ fontWeight: 600 }}>{newEmail}</span>{" "}
-                  granting them access as{" "}
-                  <span style={{ fontWeight: 600 }}>{roleLabels[newRole]}</span>.
-                </p>
-              </div>
-            )}
-
-            {addError && (
-              <div className="px-3 py-2.5 space-y-2" style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "4px" }}>
-                <p style={{ fontSize: "13px", color: "#B91C1C" }}>{addError}</p>
-                {conflictId && (
-                  <button
-                    onClick={async () => {
-                      await fetch(`${conflictId.apiUrl}/${conflictId.id}`, { method: "DELETE" });
-                      setAddError("");
-                      setConflictId(null);
-                      setUsers((prev) => prev.filter((u) => u.id !== conflictId.id));
-                      handleAdd();
-                    }}
-                    style={{ fontSize: "12px", fontWeight: 600, color: "#B91C1C", background: "none", border: "1px solid #FECACA", borderRadius: "4px", padding: "4px 10px", cursor: "pointer" }}
-                  >
-                    Remove existing record &amp; re-add
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewRole("driver"); setAddError(""); setConflictId(null); }}
-                className="transition-colors hover:bg-secondary"
-                style={{ padding: "12px 24px", borderRadius: "4px", border: "2px solid #0C71C3", fontSize: "14px", fontWeight: 600, color: "#0C71C3", backgroundColor: "#FFFFFF" }}
-                disabled={isSending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAdd}
-                disabled={!newEmail || !newName || isSending || ((newRole === "driver" || newRole === "transportation_admin") && !newPhone)}
-                className="flex items-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-40"
-                style={{ padding: "12px 24px", borderRadius: "4px", fontSize: "14px", fontWeight: 600, backgroundColor: "#0C71C3", color: "#FFFFFF", border: "none" }}
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Sending…
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4" />
-                    Add User & Send Invite
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {deleteError && (
-          <div className="flex items-center gap-2 px-3 py-2.5" style={{ backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "4px" }}>
-            <p style={{ fontSize: "13px", color: "#B91C1C" }}>{deleteError}</p>
-          </div>
-        )}
-
-        {/* User list */}
-        <div className="bg-card border border-border overflow-hidden" style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
-          <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-            <span style={{ fontSize: "0.85rem", fontWeight: 600 }} className="text-foreground">
-              {filtered.length} user{filtered.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          {filtered.length === 0 ? (
-            <div className="px-4 py-10 text-center text-muted-foreground" style={{ fontSize: "0.875rem" }}>
-              No users found
-            </div>
-          ) : (
-            <ul className="divide-y divide-border">
-              {filtered.map((user) => (
-                <li key={user.id} className="px-4 py-3.5 flex items-center gap-3 hover:bg-muted/30 transition-colors">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <span className="text-primary" style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                      {user.name.charAt(0)}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-foreground truncate" style={{ fontSize: "0.9rem", fontWeight: 500 }}>{user.name}</p>
-                    <p className="text-muted-foreground truncate" style={{ fontSize: "0.78rem" }}>{user.email}</p>
-                    {user.phone && (
-                      <p className="text-muted-foreground truncate" style={{ fontSize: "0.78rem" }}>{user.phone}</p>
-                    )}
-                  </div>
-                  <span className={`px-2 py-1 rounded-md ${roleColors[user.role]}`} style={{ fontSize: "0.75rem", fontWeight: 500 }}>
-                    {roleLabels[user.role]}
-                  </span>
-                  <button
-                    onClick={() => handleDelete(user.id)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        </>}
+        {activeTab === "mandals" && <MandalsTab />}
       </div>
 
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 w-80 bg-white border border-border transition-all duration-300 ${toastVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-          style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.15) 0px 4px 12px 0px" }}
+          className={`fixed bottom-6 right-6 z-50 w-80 card-warm shadow-warm-3 transition-all duration-300 ${toastVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
         >
           <div className="p-4">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <CheckCircle className="w-4 h-4 text-green-600" />
+              <div className="stat-ic flex-shrink-0" style={{ background: "var(--ok-tint)", color: "var(--ok)", margin: 0, width: 32, height: 32 }}>
+                <CheckCircle className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p style={{ fontSize: "0.875rem", fontWeight: 600 }} className="text-foreground">Invitation sent!</p>
-                <p className="text-muted-foreground truncate mt-0.5" style={{ fontSize: "0.78rem" }}>{toast.email}</p>
+                <p className="text-sm font-semibold text-[var(--head)]">Invitation sent!</p>
+                <p className="text-muted-foreground truncate mt-0.5 text-xs">{toast.email}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColors[toast.role]}`} style={{ fontSize: "0.72rem" }}>
+                  <span className={`badge-pill ${roleBadge[toast.role]}`}>
                     {roleLabels[toast.role]}
                   </span>
                   <button
                     onClick={() => setEmailPreview({ name: toast.name, email: toast.email, role: toast.role })}
-                    className="text-primary hover:underline"
-                    style={{ fontSize: "0.78rem" }}
+                    className="text-[var(--primary)] hover:underline text-xs"
                   >
                     Preview email →
                   </button>
                 </div>
               </div>
-              <button onClick={dismissToast} className="p-1 rounded-lg text-muted-foreground hover:bg-muted transition-colors flex-shrink-0">
-                <X className="w-4 h-4" />
+              <button onClick={dismissToast} className="iconbtn" style={{ width: 28, height: 28 }}>
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -602,40 +676,37 @@ export function SuperAdminScreen({ onBack }: Props) {
       {emailPreview && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }}
+          style={{ background: "rgba(20,12,6,0.42)", backdropFilter: "blur(4px)" }}
           onClick={(e) => { if (e.target === e.currentTarget) setEmailPreview(null); }}
         >
-          <div className="bg-white w-full max-w-lg overflow-hidden" style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.15) 0px 4px 12px 0px" }}>
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div className="card-warm shadow-warm-3 w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-muted-foreground" />
-                <span style={{ fontSize: "16px", fontWeight: 600, color: "#173D61" }}>Email Preview</span>
+                <span className="text-[15px] font-semibold text-[var(--head)]">Email Preview</span>
               </div>
-              <button onClick={() => setEmailPreview(null)} className="p-1.5 rounded transition-colors hover:bg-secondary" style={{ color: "#494D52" }}>
+              <button onClick={() => setEmailPreview(null)} className="iconbtn" style={{ width: 32, height: 32 }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Email metadata bar */}
-            <div className="px-6 py-3 border-b border-border space-y-1" style={{ backgroundColor: "#FDF2EA" }}>
-              <div className="flex gap-2" style={{ fontSize: "13px" }}>
+            <div className="px-6 py-3 border-b border-[var(--line)] space-y-1" style={{ background: "var(--surface-2)" }}>
+              <div className="flex gap-2 text-sm">
                 <span className="text-muted-foreground w-14 flex-shrink-0">From:</span>
-                <span style={{ color: "#494D52", fontWeight: 500 }}>SPS Airport Transport App &lt;noreply@spsairporttransport.app&gt;</span>
+                <span className="text-[var(--head)] font-medium">SPS Airport Transport App &lt;noreply@spsairporttransport.app&gt;</span>
               </div>
-              <div className="flex gap-2" style={{ fontSize: "13px" }}>
+              <div className="flex gap-2 text-sm">
                 <span className="text-muted-foreground w-14 flex-shrink-0">To:</span>
-                <span style={{ color: "#494D52" }}>{emailPreview.email}</span>
+                <span className="text-[var(--head)]">{emailPreview.email}</span>
               </div>
-              <div className="flex gap-2" style={{ fontSize: "13px" }}>
+              <div className="flex gap-2 text-sm">
                 <span className="text-muted-foreground w-14 flex-shrink-0">Subject:</span>
-                <span style={{ color: "#494D52", fontWeight: 500 }}>
+                <span className="text-[var(--head)] font-medium">
                   {previewContent?.subject ?? "You're invited to SPS Transportation App"}
                 </span>
               </div>
             </div>
 
-            {/* Email body */}
             <div className="px-6 py-6 max-h-96 overflow-y-auto">
               {previewLoading ? (
                 <div className="flex items-center justify-center py-8">
@@ -643,22 +714,18 @@ export function SuperAdminScreen({ onBack }: Props) {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Role badge */}
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-1" style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: "6px" }}>
-                    <span style={{ fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B7280" }}>Role:</span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#1D4ED8" }}>{roleLabels[emailPreview.role]}</span>
-                  </div>
-                  {/* Template body rendered as paragraphs */}
+                  <span className={`badge-pill ${roleBadge[emailPreview.role]}`}>
+                    {roleLabels[emailPreview.role]}
+                  </span>
                   {(previewContent?.body ?? "").split("\n\n").map((para, i) => (
-                    <p key={i} style={{ fontSize: "14px", lineHeight: "22px", color: "#494D52", margin: 0 }}>
+                    <p key={i} className="text-sm leading-relaxed text-[var(--ink)] m-0">
                       {para.split("\n").map((line, j, arr) => (
                         <span key={j}>{line}{j < arr.length - 1 && <br />}</span>
                       ))}
                     </p>
                   ))}
-                  {/* Open App button */}
                   <div className="pt-2">
-                    <div style={{ display: "inline-block", padding: "10px 22px", borderRadius: "4px", backgroundColor: "#0C71C3", color: "#FFFFFF", fontSize: "14px", fontWeight: 600 }}>
+                    <div className="btn btn--primary">
                       Open App →
                     </div>
                   </div>
@@ -672,11 +739,23 @@ export function SuperAdminScreen({ onBack }: Props) {
   );
 }
 
-function StatCard({ icon, label, count, color }: { icon: ReactNode; label: string; count: number; color: string }) {
+type Tone = "info" | "accent" | "ok" | "violet" | "warn";
+const toneStyles: Record<Tone, { bg: string; color: string }> = {
+  info:   { bg: "var(--info-tint)",   color: "var(--info)" },
+  accent: { bg: "var(--accent-tint)", color: "var(--accent)" },
+  ok:     { bg: "var(--ok-tint)",     color: "var(--ok)" },
+  violet: { bg: "var(--violet-tint)", color: "var(--violet)" },
+  warn:   { bg: "var(--warn-tint)",   color: "var(--warn)" },
+};
+
+function StatCard({ icon, label, value, sub, tone }: { icon: ReactNode; label: string; value: string; sub: string; tone: Tone }) {
+  const t = toneStyles[tone];
   return (
-    <div className={`border p-4 flex flex-col gap-2 ${color}`} style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}>
-      <div className="flex items-center gap-1.5">{icon}<span style={{ fontSize: "13px", color: "#999999" }}>{label}</span></div>
-      <p style={{ fontSize: "26px", fontWeight: 500, lineHeight: 1, color: "#173D61" }}>{count}</p>
+    <div className="stat">
+      <div className="stat-ic" style={{ background: t.bg, color: t.color }}>{icon}</div>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-sub">{sub}</div>
     </div>
   );
 }
@@ -744,73 +823,76 @@ function VehiclesTab() {
     setEditingVehicleId(null);
   };
 
+  const fields: { key: "make" | "name" | "vehicleNumber"; label: string; placeholder: string }[] = [
+    { key: "make", label: "Make", placeholder: "Toyota" },
+    { key: "name", label: "Model / Name", placeholder: "Innova Crysta" },
+    { key: "vehicleNumber", label: "Vehicle Number", placeholder: "GJ 01 AB 1234" },
+  ];
+
   return (
-    <section>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 style={{ fontSize: "0.95rem", fontWeight: 600 }} className="text-foreground">Fleet Vehicles</h2>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[18px] font-semibold text-[var(--head)]">Fleet Vehicles</h2>
         <button
           onClick={() => { setShowAddVehicle(!showAddVehicle); setEditingVehicleId(null); }}
-          className="flex items-center gap-1.5 text-accent hover:opacity-80 transition-opacity"
-          style={{ fontSize: "0.82rem", fontWeight: 500, color: "#0C71C3" }}
+          className="btn btn--accent"
         >
           <PlusCircle className="w-4 h-4" />
           Add Vehicle
         </button>
       </div>
 
-      {/* Add Vehicle form */}
       {showAddVehicle && (
-        <div className="bg-card border border-border rounded-xl p-4 mb-4 space-y-3">
-          <h3 style={{ fontSize: "0.88rem", fontWeight: 600 }} className="text-foreground">New Vehicle</h3>
-          <div className="grid sm:grid-cols-2 gap-2.5">
-            {([
-              { key: "make", label: "Make", placeholder: "Toyota" },
-              { key: "name", label: "Model / Name", placeholder: "Innova Crysta" },
-              { key: "vehicleNumber", label: "Vehicle Number", placeholder: "GJ 01 AB 1234" },
-            ] as { key: keyof typeof vehicleForm; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+        <div
+          className="space-y-3"
+          style={{
+            border: "1px dashed var(--accent)",
+            background: "var(--accent-tint)",
+            padding: 20,
+            borderRadius: "var(--r)",
+          }}
+        >
+          <h3 className="text-[15px] font-semibold text-[var(--head)]">New Vehicle</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {fields.map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>{label}</label>
+                <label className="block mb-1.5">{label}</label>
                 <input
                   type="text"
                   placeholder={placeholder}
                   value={vehicleForm[key]}
                   onChange={(e) => setVehicleForm({ ...vehicleForm, [key]: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                  style={{ fontSize: "0.85rem" }}
+                  className="input-warm"
                 />
               </div>
             ))}
             <div>
-              <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>Vehicle Type</label>
+              <label className="block mb-1.5">Vehicle Type</label>
               <select
                 value={vehicleForm.type}
                 onChange={(e) => setVehicleForm({ ...vehicleForm, type: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                style={{ fontSize: "0.85rem" }}
+                className="input-warm"
               >
                 {["SUV", "MUV", "Van", "Tempo Traveller", "Bus", "Sedan"].map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>Seating Capacity</label>
+              <label className="block mb-1.5">Seating Capacity</label>
               <select
                 value={vehicleForm.capacity}
                 onChange={(e) => setVehicleForm({ ...vehicleForm, capacity: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                style={{ fontSize: "0.85rem" }}
+                className="input-warm"
               >
                 {[4, 5, 6, 7, 8, 10, 12, 14, 20, 30].map((n) => <option key={n} value={n}>{n} seats</option>)}
               </select>
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setShowAddVehicle(false)} className="px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors" style={{ fontSize: "0.82rem" }}>Cancel</button>
+            <button onClick={() => setShowAddVehicle(false)} className="btn btn--ghost">Cancel</button>
             <button
               onClick={handleAddVehicle}
               disabled={!vehicleForm.make || !vehicleForm.name || !vehicleForm.vehicleNumber}
-              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-40 transition-opacity"
-              style={{ fontSize: "0.82rem", fontWeight: 500 }}
+              className="btn btn--accent"
             >
               Add Vehicle
             </button>
@@ -818,83 +900,75 @@ function VehiclesTab() {
         </div>
       )}
 
-      {/* Vehicle list */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden">
+      <div className="card-warm overflow-hidden">
         {vehiclesLoading ? (
-          <div className="px-4 py-8 text-center text-muted-foreground" style={{ fontSize: "0.875rem" }}>Loading vehicles…</div>
+          <div className="px-4 py-8 text-center text-muted-foreground text-sm">Loading vehicles…</div>
         ) : vehicles.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground" style={{ fontSize: "0.875rem" }}>No vehicles added yet</div>
+          <div className="px-4 py-8 text-center text-muted-foreground text-sm">No vehicles added yet</div>
         ) : (
-          <ul className="divide-y divide-border/60">
+          <ul className="divide-y divide-[var(--line-soft)]">
             {vehicles.map((vehicle) => {
               const isEditing = editingVehicleId === vehicle.id;
               return (
-                <li key={vehicle.id} className="px-4 py-4">
+                <li key={vehicle.id} className="px-5 py-4">
                   {isEditing ? (
                     <div className="space-y-3">
-                      <div className="grid sm:grid-cols-2 gap-2.5">
-                        {([
-                          { key: "make", label: "Make", placeholder: "Toyota" },
-                          { key: "name", label: "Model / Name", placeholder: "Innova Crysta" },
-                          { key: "vehicleNumber", label: "Vehicle Number", placeholder: "GJ 01 AB 1234" },
-                        ] as { key: keyof typeof editVehicleForm; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {fields.map(({ key, label, placeholder }) => (
                           <div key={key}>
-                            <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>{label}</label>
+                            <label className="block mb-1.5">{label}</label>
                             <input
                               type="text"
                               placeholder={placeholder}
                               value={String(editVehicleForm[key])}
                               onChange={(e) => setEditVehicleForm({ ...editVehicleForm, [key]: e.target.value })}
-                              className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                              style={{ fontSize: "0.85rem" }}
+                              className="input-warm"
                             />
                           </div>
                         ))}
                         <div>
-                          <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>Vehicle Type</label>
+                          <label className="block mb-1.5">Vehicle Type</label>
                           <select
                             value={editVehicleForm.type}
                             onChange={(e) => setEditVehicleForm({ ...editVehicleForm, type: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                            style={{ fontSize: "0.85rem" }}
+                            className="input-warm"
                           >
                             {["SUV", "MUV", "Van", "Tempo Traveller", "Bus", "Sedan"].map((t) => <option key={t} value={t}>{t}</option>)}
                           </select>
                         </div>
                         <div>
-                          <label className="block text-muted-foreground mb-1" style={{ fontSize: "0.76rem" }}>Seating Capacity</label>
+                          <label className="block mb-1.5">Seating Capacity</label>
                           <select
                             value={editVehicleForm.capacity}
                             onChange={(e) => setEditVehicleForm({ ...editVehicleForm, capacity: parseInt(e.target.value) })}
-                            className="w-full px-3 py-2 rounded-lg border border-border bg-input-background text-foreground"
-                            style={{ fontSize: "0.85rem" }}
+                            className="input-warm"
                           >
                             {[4, 5, 6, 7, 8, 10, 12, 14, 20, 30].map((n) => <option key={n} value={n}>{n} seats</option>)}
                           </select>
                         </div>
                       </div>
                       <div className="flex justify-end gap-2">
-                        <button onClick={() => setEditingVehicleId(null)} className="px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors" style={{ fontSize: "0.82rem" }}>Cancel</button>
-                        <button onClick={() => handleSaveVehicle(vehicle.id)} className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity" style={{ fontSize: "0.82rem", fontWeight: 500 }}>Save</button>
+                        <button onClick={() => setEditingVehicleId(null)} className="btn btn--ghost btn--sm">Cancel</button>
+                        <button onClick={() => handleSaveVehicle(vehicle.id)} className="btn btn--primary btn--sm">Save</button>
                       </div>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 flex-wrap">
-                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <Truck className="w-4 h-4 text-primary" />
+                      <div className="avatar-warm avatar-warm--blue">
+                        <Truck className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-foreground" style={{ fontSize: "0.9rem", fontWeight: 600 }}>{vehicle.make} {vehicle.name}</p>
-                          <span className="bg-muted text-muted-foreground px-2 py-0.5 rounded" style={{ fontSize: "0.72rem", fontWeight: 500 }}>{vehicle.type}</span>
-                          <span className="text-muted-foreground" style={{ fontSize: "0.75rem" }}>{vehicle.capacity} seats</span>
+                          <p className="text-[var(--head)] text-sm font-semibold">{vehicle.make} {vehicle.name}</p>
+                          <span className="tag-chip">{vehicle.type}</span>
+                          <span className="text-muted-foreground text-xs">{vehicle.capacity} seats</span>
                         </div>
-                        <p className="text-muted-foreground" style={{ fontSize: "0.78rem" }}>{vehicle.vehicleNumber}</p>
+                        <p className="text-muted-foreground text-xs">{vehicle.vehicleNumber}</p>
                       </div>
-                      <button onClick={() => handleEditVehicle(vehicle)} className="p-1.5 text-muted-foreground hover:text-primary transition-colors">
+                      <button onClick={() => handleEditVehicle(vehicle)} className="iconbtn" style={{ width: 34, height: 34 }} title="Edit">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleDeleteVehicle(vehicle.id)} className="p-1.5 text-muted-foreground hover:text-destructive transition-colors">
+                      <button onClick={() => handleDeleteVehicle(vehicle.id)} className="iconbtn" style={{ width: 34, height: 34 }} title="Delete">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -919,7 +993,6 @@ function TemplatesTab() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // On mount: fetch saved templates from MongoDB, overlay on defaults, and seed any missing ones.
   useEffect(() => {
     fetch(`${TEMPLATES_API}/`)
       .then((r) => r.json())
@@ -930,7 +1003,6 @@ function TemplatesTab() {
             return fromDB ? { ...def, ...fromDB } : def;
           })
         );
-        // Seed templates that have never been saved to MongoDB so edits always persist.
         DEFAULT_TEMPLATES.forEach((def) => {
           if (!saved.find((s) => s.id === def.id)) {
             fetch(`${TEMPLATES_API}/${def.id}`, {
@@ -944,7 +1016,7 @@ function TemplatesTab() {
           }
         });
       })
-      .catch(() => {}); // network down → keep built-in defaults
+      .catch(() => {});
   }, []);
 
   const channelTemplates = templates.filter((t) => t.channel === activeChannel && !t.deleted);
@@ -1037,36 +1109,39 @@ function TemplatesTab() {
 
   return (
     <div className="space-y-4">
-      {/* Channel selector */}
       <div className="flex items-center justify-between">
-        <div className="flex gap-1 p-1" style={{ background: "#F3F4F6", borderRadius: "6px", width: "fit-content" }}>
-          {(["email", "sms"] as TemplateChannel[]).map((ch) => (
-            <button
-              key={ch}
-              onClick={() => { setActiveChannel(ch); cancelEdit(); }}
-              className="flex items-center gap-1.5 transition-colors"
-              style={{
-                padding: "6px 16px",
-                borderRadius: "4px",
-                fontSize: "13px",
-                fontWeight: 600,
-                backgroundColor: activeChannel === ch ? "#0C71C3" : "transparent",
-                color: activeChannel === ch ? "#FFFFFF" : "#494D52",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              {ch === "email" ? <Mail className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
-              {ch === "email" ? "Email" : "SMS"}
-            </button>
-          ))}
+        <div
+          className="flex items-center gap-0.5 p-1 rounded-[var(--r-sm)]"
+          style={{ background: "var(--surface-3)", border: "1px solid var(--line)" }}
+        >
+          {(["email", "sms"] as TemplateChannel[]).map((ch) => {
+            const active = activeChannel === ch;
+            return (
+              <button
+                key={ch}
+                onClick={() => { setActiveChannel(ch); cancelEdit(); }}
+                className="flex items-center gap-1.5 transition-all"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: "7px 14px",
+                  borderRadius: 6,
+                  background: active ? "var(--surface)" : "transparent",
+                  color: active ? "var(--head)" : "var(--muted-foreground)",
+                  boxShadow: active ? "var(--sh-1)" : "none",
+                }}
+              >
+                {ch === "email" ? <Mail className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
+                {ch === "email" ? "Email" : "SMS"}
+              </button>
+            );
+          })}
         </div>
-        <p style={{ fontSize: "12px", color: "#999999" }}>
+        <p className="text-xs text-muted-foreground">
           {channelTemplates.length} template{channelTemplates.length !== 1 ? "s" : ""}
         </p>
       </div>
 
-      {/* Template cards */}
       {channelTemplates.map((t) => {
         const isEditing = editingId === t.id;
         const isExpanded = expandedId === t.id;
@@ -1076,40 +1151,46 @@ function TemplatesTab() {
           (t.subject ?? "") !== (DEFAULT_TEMPLATES.find((d) => d.id === t.id)?.subject ?? "");
 
         return (
-          <div
-            key={t.id}
-            className="bg-card border border-border overflow-hidden"
-            style={{ borderRadius: "4px", boxShadow: "rgba(0,0,0,0.1) 0px 1px 0px 0px" }}
-          >
-            {/* Card header */}
+          <div key={t.id} className="card-warm overflow-hidden">
             <div
-              className="px-5 py-4 flex items-center gap-3 cursor-pointer hover:bg-muted/20 transition-colors"
+              className="px-5 py-4 flex items-center gap-3 cursor-pointer hover:bg-[var(--surface-2)] transition-colors"
               onClick={() => !isEditing && toggleExpand(t.id)}
+              style={{ background: "var(--surface-2)" }}
             >
               <div
-                className="w-8 h-8 flex items-center justify-center flex-shrink-0"
-                style={{ borderRadius: "6px", backgroundColor: activeChannel === "email" ? "#EFF6FF" : "#F0FDF4" }}
+                className="stat-ic flex-shrink-0"
+                style={{
+                  margin: 0,
+                  width: 32,
+                  height: 32,
+                  background: activeChannel === "email" ? "var(--info-tint)" : "var(--ok-tint)",
+                  color: activeChannel === "email" ? "var(--info)" : "var(--ok)",
+                }}
               >
                 {activeChannel === "email"
-                  ? <Mail className="w-4 h-4" style={{ color: "#0C71C3" }} />
-                  : <MessageSquare className="w-4 h-4" style={{ color: "#16A34A" }} />}
+                  ? <Mail className="w-4 h-4" />
+                  : <MessageSquare className="w-4 h-4" />}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p style={{ fontSize: "14px", fontWeight: 600, color: "#173D61" }}>{t.name}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-semibold text-[var(--head)]">{t.name}</p>
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--muted-foreground)" }}
+                  >
+                    {activeChannel}
+                  </span>
                   {isModified && (
-                    <span style={{ fontSize: "11px", fontWeight: 500, color: "#D97706", background: "#FEF3C7", padding: "1px 7px", borderRadius: "10px", border: "1px solid #FDE68A" }}>
-                      Modified
-                    </span>
+                    <span className="badge-pill badge--warn">Modified</span>
                   )}
                   {isSaved && (
-                    <span className="flex items-center gap-1" style={{ fontSize: "11px", fontWeight: 500, color: "#16A34A", background: "#F0FDF4", padding: "1px 7px", borderRadius: "10px", border: "1px solid #BBF7D0" }}>
+                    <span className="badge-pill badge--ok">
                       <CheckCircle className="w-3 h-3" /> Saved
                     </span>
                   )}
                 </div>
                 {t.subject && (
-                  <p className="truncate" style={{ fontSize: "12px", color: "#999999", marginTop: "1px" }}>
+                  <p className="truncate text-xs text-muted-foreground mt-0.5">
                     Subject: {t.subject}
                   </p>
                 )}
@@ -1118,8 +1199,7 @@ function TemplatesTab() {
                 {!isEditing && (
                   <button
                     onClick={(e) => { e.stopPropagation(); startEdit(t); }}
-                    className="flex items-center gap-1.5 transition-colors hover:opacity-80"
-                    style={{ padding: "6px 14px", borderRadius: "4px", fontSize: "13px", fontWeight: 600, backgroundColor: "#0C71C3", color: "#FFFFFF", border: "none", cursor: "pointer" }}
+                    className="btn btn--primary btn--sm"
                   >
                     <FileText className="w-3.5 h-3.5" />
                     Edit
@@ -1128,9 +1208,9 @@ function TemplatesTab() {
                 {isModified && !isEditing && (
                   <button
                     onClick={(e) => { e.stopPropagation(); resetTemplate(t.id); }}
-                    className="flex items-center gap-1 transition-colors hover:opacity-80"
+                    className="iconbtn"
+                    style={{ width: 34, height: 34 }}
                     title="Reset to default"
-                    style={{ padding: "6px 10px", borderRadius: "4px", fontSize: "13px", color: "#494D52", border: "1px solid #CCCCCC", background: "#FFFFFF", cursor: "pointer" }}
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                   </button>
@@ -1138,29 +1218,34 @@ function TemplatesTab() {
                 {!isEditing && (
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteTemplate(t.id); }}
-                    className="p-1.5 rounded transition-colors hover:bg-red-50 hover:text-red-500"
+                    className="iconbtn"
+                    style={{ width: 34, height: 34 }}
                     title="Delete template"
-                    style={{ color: "#CCCCCC", border: "none", background: "none", cursor: "pointer" }}
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
                 {isExpanded
-                  ? <ChevronUp className="w-4 h-4" style={{ color: "#999999" }} />
-                  : <ChevronDown className="w-4 h-4" style={{ color: "#999999" }} />}
+                  ? <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
               </div>
             </div>
 
-            {/* Expanded: preview or editor */}
             {isExpanded && (
-              <div className="border-t border-border px-5 py-4 space-y-4" style={{ background: "#FAFAFA" }}>
-                {/* Variable chips */}
+              <div className="border-t border-[var(--line)] px-5 py-4 space-y-4">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span style={{ fontSize: "12px", color: "#999999", fontWeight: 500 }}>Variables:</span>
+                  <span className="text-xs text-muted-foreground font-medium">Variables:</span>
                   {t.variables.map((v) => (
                     <span
                       key={v}
-                      style={{ fontSize: "12px", fontFamily: "monospace", color: "#0C71C3", background: "#EFF6FF", padding: "2px 8px", borderRadius: "4px", border: "1px solid #BFDBFE" }}
+                      style={{
+                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                        fontSize: "11.5px",
+                        color: "var(--primary)",
+                        background: "var(--info-tint)",
+                        padding: "2px 7px",
+                        borderRadius: 6,
+                      }}
                     >
                       {`{{${v}}}`}
                     </span>
@@ -1168,44 +1253,34 @@ function TemplatesTab() {
                 </div>
 
                 {isEditing ? (
-                  /* Editor */
                   <div className="space-y-3">
                     {activeChannel === "email" && (
                       <div>
-                        <label style={{ fontSize: "13px", fontWeight: 600, color: "#494D52", display: "block", marginBottom: "6px" }}>Subject</label>
+                        <label className="block mb-1.5">Subject</label>
                         <input
                           type="text"
                           value={draftSubject}
                           onChange={(e) => setDraftSubject(e.target.value)}
-                          className="w-full focus:outline-none"
-                          style={{ padding: "10px 14px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "14px", background: "#FFFFFF" }}
+                          className="input-warm"
                         />
                       </div>
                     )}
                     <div>
-                      <label style={{ fontSize: "13px", fontWeight: 600, color: "#494D52", display: "block", marginBottom: "6px" }}>
-                        Body
-                      </label>
+                      <label className="block mb-1.5">Body</label>
                       <textarea
                         value={draftBody}
                         onChange={(e) => setDraftBody(e.target.value)}
                         rows={8}
-                        className="w-full focus:outline-none resize-y"
-                        style={{ padding: "10px 14px", borderRadius: "4px", border: "1px solid #CCCCCC", fontSize: "13px", fontFamily: "monospace", background: "#FFFFFF", lineHeight: 1.7 }}
+                        className="input-warm"
+                        style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13, resize: "vertical" }}
                       />
                     </div>
                     <div className="flex justify-end gap-2">
-                      <button
-                        onClick={cancelEdit}
-                        style={{ padding: "8px 20px", borderRadius: "4px", fontSize: "13px", fontWeight: 600, color: "#494D52", border: "1px solid #CCCCCC", background: "#FFFFFF", cursor: "pointer" }}
-                      >
-                        Cancel
-                      </button>
+                      <button onClick={cancelEdit} className="btn btn--ghost">Cancel</button>
                       <button
                         onClick={() => saveEdit(t.id)}
                         disabled={!draftBody.trim() || isSaving}
-                        className="flex items-center gap-1.5 disabled:opacity-40"
-                        style={{ padding: "8px 20px", borderRadius: "4px", fontSize: "13px", fontWeight: 600, color: "#FFFFFF", background: "#0C71C3", border: "none", cursor: "pointer" }}
+                        className="btn btn--primary"
                       >
                         {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                         {isSaving ? "Saving…" : "Save Template"}
@@ -1213,15 +1288,14 @@ function TemplatesTab() {
                     </div>
                   </div>
                 ) : (
-                  /* Preview */
                   <div>
                     {t.subject && (
-                      <div className="mb-3 pb-3 border-b border-border">
-                        <span style={{ fontSize: "12px", color: "#999999", fontWeight: 500 }}>Subject: </span>
-                        <span style={{ fontSize: "13px", color: "#173D61", fontWeight: 600 }}>{t.subject}</span>
+                      <div className="mb-3 pb-3 border-b border-[var(--line)]">
+                        <span className="text-xs text-muted-foreground font-medium">Subject: </span>
+                        <span className="text-sm text-[var(--head)] font-semibold">{t.subject}</span>
                       </div>
                     )}
-                    <pre style={{ fontSize: "13px", color: "#494D52", whiteSpace: "pre-wrap", fontFamily: "inherit", lineHeight: 1.7, margin: 0 }}>
+                    <pre className="text-sm text-[var(--ink)] whitespace-pre-wrap leading-relaxed m-0" style={{ fontFamily: "inherit" }}>
                       {t.body}
                     </pre>
                   </div>
@@ -1232,31 +1306,26 @@ function TemplatesTab() {
         );
       })}
 
-      {/* Deleted templates — restore section */}
       {deletedTemplates.length > 0 && (
         <div className="space-y-2">
-          <p style={{ fontSize: "12px", fontWeight: 600, color: "#999999", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Deleted Templates
           </p>
           {deletedTemplates.map((t) => (
             <div
               key={t.id}
-              className="flex items-center gap-3 px-4 py-3 border border-dashed border-border"
-              style={{ borderRadius: "4px", background: "#FAFAFA" }}
+              className="flex items-center gap-3 px-4 py-3 rounded-[var(--r-sm)]"
+              style={{ border: "1px dashed var(--line)", background: "var(--surface-2)" }}
             >
-              <div
-                className="w-7 h-7 flex items-center justify-center flex-shrink-0"
-                style={{ borderRadius: "6px", backgroundColor: "#F3F4F6" }}
-              >
+              <div className="stat-ic" style={{ margin: 0, width: 28, height: 28, background: "var(--surface-3)", color: "var(--muted-foreground)" }}>
                 {t.channel === "email"
-                  ? <Mail className="w-3.5 h-3.5" style={{ color: "#CCCCCC" }} />
-                  : <MessageSquare className="w-3.5 h-3.5" style={{ color: "#CCCCCC" }} />}
+                  ? <Mail className="w-3.5 h-3.5" />
+                  : <MessageSquare className="w-3.5 h-3.5" />}
               </div>
-              <p style={{ fontSize: "13px", color: "#999999", textDecoration: "line-through", flex: 1 }}>{t.name}</p>
+              <p className="text-sm text-muted-foreground line-through flex-1">{t.name}</p>
               <button
                 onClick={() => restoreTemplate(t.id)}
-                className="flex items-center gap-1.5 transition-colors hover:opacity-80"
-                style={{ fontSize: "13px", fontWeight: 600, color: "#0C71C3", background: "none", border: "none", cursor: "pointer", padding: "4px 8px" }}
+                className="btn btn--ghost btn--sm"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Restore
@@ -1265,6 +1334,174 @@ function TemplatesTab() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function UserRow({
+  user, roleLabel, roleBadgeClass, onRename, onDelete,
+}: {
+  user: User;
+  roleLabel: string;
+  roleBadgeClass: string;
+  onRename: (patch: { name?: string; phone?: string }) => Promise<{ ok: boolean; error?: string }>;
+  onDelete: () => void;
+}) {
+  const [editingField, setEditingField] = useState<"name" | "phone" | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [rowError, setRowError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingField === "name") setDraft(user.name);
+    if (editingField === "phone") setDraft(user.phone ?? "");
+    setRowError("");
+    if (editingField) requestAnimationFrame(() => inputRef.current?.select());
+  }, [editingField, user.name, user.phone]);
+
+  const cancel = () => { setEditingField(null); setRowError(""); };
+
+  const save = async () => {
+    const next = draft.trim();
+    const current = editingField === "name" ? user.name : (user.phone ?? "");
+    if (editingField === "name" && !next) { cancel(); return; }
+    if (next === current) { cancel(); return; }
+    setSaving(true);
+    const result = await onRename(editingField === "name" ? { name: next } : { phone: next });
+    setSaving(false);
+    if (!result.ok) {
+      setRowError(result.error || "Save failed");
+      return;
+    }
+    setEditingField(null);
+  };
+
+  return (
+    <li className="px-5 py-3.5 flex items-center gap-3 hover:bg-[var(--surface-2)] transition-colors group">
+      <div className="avatar-warm">
+        {user.name.charAt(0)}
+      </div>
+      <div className="flex-1 min-w-0">
+        {editingField === "name" ? (
+          <InlineEditInput
+            inputRef={inputRef}
+            value={draft}
+            saving={saving}
+            error={rowError}
+            placeholder="Full name"
+            maxLength={160}
+            onChange={(v) => { setDraft(v); setRowError(""); }}
+            onSave={save}
+            onCancel={cancel}
+          />
+        ) : (
+          <button
+            type="button"
+            className="block w-full text-left truncate text-[var(--head)] text-sm font-semibold"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "text" }}
+            onClick={() => setEditingField("name")}
+            title="Click to rename"
+          >
+            {user.name}
+          </button>
+        )}
+        <p className="text-muted-foreground truncate text-xs">{user.email}</p>
+        {editingField === "phone" ? (
+          <div className="mt-1">
+            <InlineEditInput
+              inputRef={inputRef}
+              value={draft}
+              saving={saving}
+              error={rowError}
+              placeholder="+1 555 555 5555"
+              maxLength={32}
+              onChange={(v) => { setDraft(v); setRowError(""); }}
+              onSave={save}
+              onCancel={cancel}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="block text-left text-muted-foreground truncate text-xs"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "text" }}
+            onClick={() => setEditingField("phone")}
+            title={user.phone ? "Click to edit phone" : "Click to add phone"}
+          >
+            {user.phone || <span style={{ fontStyle: "italic" }}>add phone</span>}
+          </button>
+        )}
+      </div>
+      <span className={`badge-pill ${roleBadgeClass}`}>{roleLabel}</span>
+      {editingField === null && (
+        <button
+          onClick={onDelete}
+          className="iconbtn"
+          style={{ width: 34, height: 34 }}
+          title="Delete user"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
+    </li>
+  );
+}
+
+function InlineEditInput({
+  inputRef, value, saving, error, placeholder, maxLength, onChange, onSave, onCancel,
+}: {
+  inputRef: React.RefObject<HTMLInputElement>;
+  value: string;
+  saving: boolean;
+  error: string;
+  placeholder: string;
+  maxLength: number;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          className="input-warm flex-1"
+          style={{ padding: "6px 10px", fontSize: 13 }}
+          value={value}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); onSave(); }
+            if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+          }}
+          disabled={saving}
+        />
+        <button
+          type="button"
+          className="iconbtn"
+          onClick={onSave}
+          disabled={saving}
+          style={{ width: 28, height: 28 }}
+          title="Save"
+          aria-label="Save"
+        >
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" style={{ color: "var(--ok)" }} />}
+        </button>
+        <button
+          type="button"
+          className="iconbtn"
+          onClick={onCancel}
+          disabled={saving}
+          style={{ width: 28, height: 28 }}
+          title="Cancel"
+          aria-label="Cancel"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+      {error && <p style={{ fontSize: 11.5, color: "var(--danger)" }}>{error}</p>}
     </div>
   );
 }

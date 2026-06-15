@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Transportation Admin · SPS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="sps-theme.css" />
+<style>
+  /* time block on flight cards */
+  .timeblock {
+    min-width: 66px; border-radius: var(--r-sm); padding: 8px 6px; text-align: center; flex-shrink: 0;
+    background: var(--accent-tint); display: flex; flex-direction: column; align-items: center; gap: 1px;
+  }
+  .timeblock.delayed { background: var(--warn-tint); }
+  .timeblock.early { background: var(--info-tint); }
+  .timeblock .tt { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; color: var(--muted); }
+  .timeblock .sched { font-size: 17px; font-weight: 700; color: var(--head); line-height: 1.05; }
+  .timeblock .sched.struck { color: var(--muted); text-decoration: line-through; font-size: 13px; }
+  .timeblock .act { font-size: 15px; font-weight: 700; line-height: 1.05; }
+  .timeblock .diff { font-size: 10px; font-weight: 700; padding: 0 5px; border-radius: 5px; margin-top: 2px; }
+
+  .fgroup { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; box-shadow: var(--sh-1); }
+  .fgroup + .fgroup { margin-top: 12px; }
+  .fgroup-head { width: 100%; display: flex; align-items: flex-start; gap: 14px; padding: 16px; cursor: pointer; background: none; border: none; font-family: inherit; text-align: left; transition: background .14s; }
+  .fgroup-head:hover { background: var(--surface-2); }
+  .fgroup-title { font-size: 15px; font-weight: 700; color: var(--head); }
+  .fgroup-meta { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .pax-rows { border-top: 1px solid var(--line); }
+  .pax-row { display: flex; align-items: flex-start; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line-soft); }
+  .pax-row:last-child { border-bottom: none; }
+  .pax-row.assigned { background: var(--ok-tint); }
+  .assigned-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--ok-tint); color: var(--ok); border-radius: var(--r-sm); padding: 6px 11px; font-size: 13px; font-weight: 600; }
+
+  .datepills { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .datepill { font-family: inherit; cursor: pointer; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); transition: all .14s; }
+  .datepill:hover { border-color: var(--accent-line); color: var(--accent-strong); }
+  .datepill.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .date-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0 12px; }
+  .date-divider .dl { font-size: 14px; font-weight: 700; color: var(--head); display: flex; align-items: center; gap: 7px; }
+  .date-divider .line { flex: 1; height: 1px; background: var(--line); }
+
+  .traveler { display: flex; align-items: flex-start; gap: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 9px 11px; min-width: 190px; }
+  .traveler-wrap { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 16px; background: var(--surface-2); border-top: 1px solid var(--line); }
+  .select-sm { font-family: inherit; font-size: 13px; padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; max-width: 230px; }
+  .linkbtn { background: none; border: none; cursor: pointer; font-family: inherit; font-size: 12.5px; color: var(--muted); }
+  .linkbtn:hover { color: var(--danger); }
+  .expand-btn { display: inline-flex; align-items: center; gap: 4px; background: var(--primary-tint); color: var(--primary); border: none; border-radius: 999px; padding: 3px 9px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div id="topbar"></div>
+
+    <div class="tabbar">
+      <div class="container">
+        <div class="tabbar-inner" id="tabs"></div>
+      </div>
+    </div>
+
+    <div class="container py-section">
+      <div id="pane-bhaktos" class="tabpane"></div>
+      <div id="pane-arrival" class="tabpane hide"></div>
+      <div id="pane-departure" class="tabpane hide"></div>
+      <div id="pane-roster" class="tabpane hide"></div>
+      <div id="pane-vehicles" class="tabpane hide"></div>
+    </div>
+  </div>
+
+  <script src="sps-data.js"></script>
+  <script src="sps-ui.js"></script>
+  <script>
+    SPSUI.initTheme();
+    const { icon } = SPSUI;
+    const D = window.SPS;
+
+    document.getElementById("topbar").innerHTML = SPSUI.topbar("Transportation Admin", "Anand Bhakta");
+    SPSUI.setTheme(document.documentElement.getAttribute("data-theme"));
+
+    /* ---------- tabs ---------- */
+    const TABS = [
+      { id: "bhaktos",   label: "Bhaktos Dashboard", ic: "grid" },
+      { id: "arrival",   label: "Arrival",           ic: "landing" },
+      { id: "departure", label: "Departure",         ic: "takeoff" },
+      { id: "roster",    label: "Sarthi Roster",     ic: "users" },
+      { id: "vehicles",  label: "Vehicles",          ic: "truck" },
+    ];
+    let activeTab = "bhaktos";
+    const tabsEl = document.getElementById("tabs");
+    tabsEl.innerHTML = TABS.map((t) => `<button class="tab${t.id === activeTab ? " active" : ""}" data-tab="${t.id}"><span class="ic">${icon(t.ic, { s: 17 })}</span>${t.label}</button>`).join("");
+    tabsEl.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+    function switchTab(id) {
+      activeTab = id;
+      tabsEl.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === id));
+      ["bhaktos", "arrival", "departure", "roster", "vehicles"].forEach((p) =>
+        document.getElementById("pane-" + p).classList.toggle("hide", p !== id));
+      window.scrollTo({ top: 0 });
+    }
+
+    /* ---------- helpers ---------- */
+    const fullName = (p) => `${p.name}`;
+    function diffLabel(sched, actual) {
+      const m = (t) => { const [h, mm] = t.split(":").map(Number); return h * 60 + mm; };
+      const d = m(actual) - m(sched);
+      if (Math.abs(d) < 2) return null;
+      const a = Math.abs(d), h = Math.floor(a / 60), mm = a % 60;
+      const lbl = h > 0 ? `${h}h ${mm}m` : `${mm}m`;
+      return (d > 0 ? "+" : "−") + lbl;
+    }
+    const STATUS = {
+      on_time:  { label: "On time",  cls: "ok",     ic: "checkc" },
+      delayed:  { label: "Delayed",  cls: "warn",   ic: "alert" },
+      early:    { label: "Early",    cls: "info",   ic: "cup" },
+      cancelled:{ label: "Cancelled", cls: "danger", ic: "xc" },
+      landed:   { label: "Landed",   cls: "info",   ic: "landing" },
+    };
+    const specialBadge = (s) => {
+      if (s === "stroller")   return `<span class="badge badge--warn">${icon("baby", { s: 12 })}Stroller</span>`;
+      if (s === "wheelchair") return `<span class="badge badge--accent">${icon("access", { s: 12 })}Wheelchair</span>`;
+      return "";
+    };
+    const fmtDate = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+
+    /* ---------- BHAKTOS ---------- */
+    function reqBadge(req) {
+      if (req === "Arrival Only")     return `<span class="badge badge--ok">${icon("landing", { s: 12 })}Arrival</span>`;
+      if (req === "Departure Only")   return `<span class="badge badge--warn">${icon("takeoff", { s: 12 })}Departure</span>`;
+      return `<span class="badge badge--info">${icon("arrows", { s: 12 })}Arr &amp; Dep</span>`;
+    }
+    let bhaktoSearch = "", expanded = new Set();
+    function renderBhaktos() {
+      const stats = {
+        total: D.BHAKTOS.length,
+        arr: D.BHAKTOS.filter((b) => b.req === "Arrival Only").length,
+        dep: D.BHAKTOS.filter((b) => b.req === "Departure Only").length,
+        both: D.BHAKTOS.filter((b) => b.req.includes("Both")).length,
+      };
+      const q = bhaktoSearch.trim().toLowerCase();
+      const rows = D.BHAKTOS.filter((b) => !q || [b.first, b.last, b.email, b.phone, b.mandal, b.req].join(" ").toLowerCase().includes(q));
+      const statCard = (ic, color, label, val, sub) =>
+        `<div class="stat"><div class="stat-ic" style="background:var(--${color}-tint);color:var(--${color})">${icon(ic, { s: 18 })}</div><div class="stat-label">${label}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div></div>`;
+      document.getElementById("pane-bhaktos").innerHTML = `
+        <div class="section-head"><h2>Travelling Bhaktos Overview</h2>
+          <button class="btn btn--ghost btn--sm" onclick="location.reload()">${icon("refresh", { s: 15 })} Refresh</button></div>
+        <div class="stats mt-2">
+          ${statCard("users", "info", "Total Bhaktos", stats.total, "all registered")}
+          ${statCard("landing", "ok", "Arrivals Only", stats.arr, "arrival transport")}
+          ${statCard("takeoff", "warn", "Departures Only", stats.dep, "departure transport")}
+          ${statCard("arrows", "violet", "Arr &amp; Dep Both", stats.both, "round trip")}
+        </div>
+        <div class="search mt-4" style="max-width:420px">${icon("search", { s: 16 })}
+          <input class="input" id="bhaktoSearch" placeholder="Search by name, mandal, email, phone…" value="${bhaktoSearch}">
+        </div>
+        <div class="card mt-3 table-wrap">
+          <table class="tbl"><thead><tr>
+            <th>Name</th><th>Mandal</th><th>Phone</th><th>Travelers</th><th>Transport</th>
+            <th>Arrival</th><th>Departure</th><th>Bags</th><th>Stroller</th>
+          </tr></thead><tbody>
+          ${rows.map((b) => bhaktoRow(b)).join("")}
+          </tbody></table>
+        </div>
+        <p class="count-note mt-2" style="text-align:right">Showing ${rows.length} of ${D.BHAKTOS.length} records</p>`;
+      const si = document.getElementById("bhaktoSearch");
+      si.addEventListener("input", (e) => { bhaktoSearch = e.target.value; const pos = e.target.selectionStart; renderBhaktos(); const n = document.getElementById("bhaktoSearch"); n.focus(); n.setSelectionRange(pos, pos); });
+    }
+    function bhaktoRow(b) {
+      const isOpen = expanded.has(b.id);
+      const hasT = b.travelers.length > 0;
+      const main = `<tr class="${hasT ? "clickable" : ""}" ${hasT ? `onclick="toggleBhakto('${b.id}')"` : ""}>
+        <td><div class="row gap-2"><div class="avatar">${b.first[0]}</div><div><div class="name">${b.first} ${b.last}</div><div class="sub">${b.email}</div></div></div></td>
+        <td>${b.mandal}</td>
+        <td>${b.phone}</td>
+        <td>${hasT ? `<button class="expand-btn" onclick="event.stopPropagation();toggleBhakto('${b.id}')">${icon(isOpen ? "cdown" : "cright", { s: 12 })}${b.count}</button>` : `<span class="tag">${b.count}</span>`}</td>
+        <td>${reqBadge(b.req)}</td>
+        <td>${b.arrF ? `<div class="name" style="font-size:13px">${b.arrF}</div><div class="sub">${b.arrT}</div>` : `<span class="muted">—</span>`}</td>
+        <td>${b.depF ? `<div class="name" style="font-size:13px">${b.depF}</div><div class="sub">${b.depT}</div>` : `<span class="muted">—</span>`}</td>
+        <td>${b.bags ? `<span class="tag">${icon("luggage", { s: 12 })}${b.bags}</span>` : `<span class="muted">—</span>`}</td>
+        <td>${b.stroller ? `<span class="badge badge--warn">${icon("baby", { s: 12 })}Yes</span>` : `<span class="muted">No</span>`}</td>
+      </tr>`;
+      const panel = isOpen ? `<tr><td colspan="9" style="padding:0">
+        <div class="traveler-wrap">
+        ${b.travelers.map((t, i) => `<div class="traveler"><div class="avatar avatar--blue" style="width:28px;height:28px;font-size:12px">${(t.first[0] || "?")}</div>
+          <div><div class="name" style="font-size:13px">T${i + 1} · ${t.first} ${t.last}</div>
+          ${t.phone ? `<div class="sub">${icon("phone", { s: 11 })} ${t.phone}</div>` : ""}
+          <div class="sub">${icon("pin", { s: 11 })} ${t.mandal}</div></div></div>`).join("")}
+        </div></td></tr>` : "";
+      return main + panel;
+    }
+    window.toggleBhakto = (id) => { expanded.has(id) ? expanded.delete(id) : expanded.add(id); renderBhaktos(); };
+
+    /* ---------- FLIGHTS (arrival / departure) ---------- */
+    const collapsed = new Set();
+    const dateSel = { arrival: "all", departure: "all" };
+    function renderFlights(type) {
+      const groups = type === "arrival" ? D.ARRIVALS : D.DEPARTURES;
+      const allBookings = groups.reduce((s, g) => s + g.pax.length, 0);
+      const allPax = groups.reduce((s, g) => s + g.pax.reduce((x, p) => x + p.count, 0), 0);
+      const assigned = groups.reduce((s, g) => s + g.pax.filter((p) => p.sarthiId).length, 0);
+      const dates = [...new Set(groups.map((g) => g.date))].sort();
+      const sel = dateSel[type];
+      const shown = sel === "all" ? groups : groups.filter((g) => g.date === sel);
+      const byDate = {};
+      shown.forEach((g) => { (byDate[g.date] = byDate[g.date] || []).push(g); });
+
+      const statCard = (ic, color, label, val, sub) =>
+        `<div class="stat"><div class="stat-ic" style="background:var(--${color}-tint);color:var(--${color})">${icon(ic, { s: 18 })}</div><div class="stat-label">${label}</div><div class="stat-value">${val}</div><div class="stat-sub">${sub}</div></div>`;
+
+      document.getElementById("pane-" + type).innerHTML = `
+        <div class="stats">
+          ${statCard("users", "info", `${type === "arrival" ? "Arrival" : "Departure"} Bookings`, allBookings, `${allPax} passengers`)}
+          ${statCard("car", "accent", "Sarthis", D.SARTHIS.length, "registered")}
+          ${statCard("checkc", "ok", "Assignments Done", `${assigned}/${allBookings}`, assigned === allBookings ? "all assigned ✓" : `${allBookings - assigned} pending`)}
+        </div>
+        <div class="section-head mt-5">
+          <h2>${type === "arrival" ? "Incoming" : "Departing"} Flights — Passenger Groups</h2>
+          <div class="datepills">${icon("calendar", { s: 14 })}
+            <button class="datepill${sel === "all" ? " on" : ""}" onclick="setDate('${type}','all')">All dates</button>
+            ${dates.map((d) => `<button class="datepill${sel === d ? " on" : ""}" onclick="setDate('${type}','${d}')">${new Date(d + "T00:00:00").toLocaleDateString("en-US", { day: "numeric", month: "short" })}</button>`).join("")}
+          </div>
+        </div>
+        ${Object.keys(byDate).sort().map((d) => {
+          const gs = byDate[d];
+          const delayed = gs.filter((g) => g.status === "delayed").length;
+          return `<div class="date-divider"><span class="dl">${icon("calendar", { s: 15 })}${fmtDate(d)}</span>
+            <span class="count-note">${gs.length} flight${gs.length > 1 ? "s" : ""}</span>
+            ${delayed ? `<span class="badge badge--warn">${icon("alert", { s: 12 })}${delayed} delayed</span>` : ""}
+            <span class="line"></span></div>
+            ${gs.map((g) => flightGroup(g)).join("")}`;
+        }).join("")}`;
+    }
+    function flightGroup(g) {
+      const isOpen = !collapsed.has(g.id);
+      const totalPax = g.pax.reduce((s, p) => s + p.count, 0);
+      const assigned = g.pax.filter((p) => p.sarthiId).length;
+      const st = STATUS[g.status];
+      const diff = diffLabel(g.sched, g.actual);
+      const changed = g.actual !== g.sched;
+      const allDone = assigned === g.pax.length;
+      const tbCls = g.status === "delayed" ? "delayed" : g.status === "early" ? "early" : "";
+      return `<div class="fgroup">
+        <button class="fgroup-head" onclick="toggleGroup('${g.id}')">
+          <div class="timeblock ${tbCls}">
+            <span class="tt">${g.type === "arrival" ? "ARR" : "DEP"}</span>
+            <span class="sched ${changed ? "struck" : ""}">${g.sched}</span>
+            ${changed ? `<span class="act" style="color:var(--${g.status === "early" ? "info" : "warn"})">${g.actual}</span>` : ""}
+            ${diff ? `<span class="diff" style="background:var(--${g.status === "early" ? "info" : "warn"}-tint);color:var(--${g.status === "early" ? "info" : "warn"})">${diff}</span>` : ""}
+          </div>
+          <div class="grow">
+            <div class="row wrap gap-2">
+              <span class="fgroup-title">${g.flight}</span>
+              <span class="muted" style="font-size:13px">${g.airline}</span>
+              <span class="tag">${g.terminal}</span>
+              <span class="badge badge--${st.cls}">${icon(st.ic, { s: 12 })}${st.label}</span>
+            </div>
+            <div class="fgroup-meta mt-2">${icon(g.type === "arrival" ? "landing" : "takeoff", { s: 13 })}
+              ${g.type === "arrival" ? "From " + g.origin : "To " + g.destination}</div>
+            <div class="row wrap gap-4 mt-2">
+              <span class="fgroup-meta">${icon("users", { s: 13 })}${totalPax} passengers · ${g.pax.length} bookings</span>
+              <span class="fgroup-meta" style="color:var(--${allDone ? "ok" : "warn"})">${icon(allDone ? "checkc" : "xc", { s: 13 })}${assigned}/${g.pax.length} Sarthis assigned</span>
+            </div>
+          </div>
+          <span class="muted" style="margin-top:4px">${icon(isOpen ? "cup" : "cdown", { s: 16 })}</span>
+        </button>
+        ${isOpen ? `<div class="pax-rows">${g.pax.map((p) => paxRow(g, p)).join("")}</div>` : ""}
+      </div>`;
+    }
+    function paxRow(g, p) {
+      const sarthi = p.sarthiId ? D.SARTHIS.find((s) => s.id === p.sarthiId) : null;
+      return `<div class="pax-row ${sarthi ? "assigned" : ""}">
+        <div class="avatar">${p.name[0]}</div>
+        <div class="grow">
+          <div class="row wrap gap-2">
+            <span class="name">${p.name}</span>
+            <span class="badge ${p.count > 1 ? "badge--info" : "badge--neutral"}">${icon("users", { s: 12 })}${p.count}</span>
+            ${specialBadge(p.special)}
+          </div>
+          <div class="row wrap gap-4 mt-2">
+            <span class="fgroup-meta">${icon("phone", { s: 12 })}${p.phone}</span>
+            <span class="fgroup-meta">${icon("pin", { s: 12 })}${p.mandal} Mandal</span>
+          </div>
+          <div class="mt-3">
+            ${sarthi
+              ? `<div class="row gap-3"><span class="assigned-chip">${icon("checkc", { s: 14 })}${sarthi.name} · ${sarthi.phone}</span>
+                  <button class="linkbtn" onclick="unassign('${g.id}','${p.id}')">Remove</button></div>`
+              : `<select class="select-sm" onchange="assign('${g.id}','${p.id}',this.value)">
+                  <option value="" selected disabled>Assign Sarthi…</option>
+                  ${D.SARTHIS.map((s) => { const v = D.VEHICLES.find((v) => v.driverId === s.id); return `<option value="${s.id}">${s.name}${v ? ` · ${v.capacity}-seater` : " · no vehicle"}</option>`; }).join("")}
+                </select>`}
+          </div>
+        </div>
+      </div>`;
+    }
+    window.toggleGroup = (id) => { collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id); renderFlights(activeTab); };
+    window.setDate = (type, d) => { dateSel[type] = d; renderFlights(type); };
+    function findPax(gid, pid) { const g = [...D.ARRIVALS, ...D.DEPARTURES].find((x) => x.id === gid); return g && g.pax.find((p) => p.id === pid); }
+    window.assign = (gid, pid, sid) => { const p = findPax(gid, pid); if (p) { p.sarthiId = sid; renderFlights(activeTab); } };
+    window.unassign = (gid, pid) => { const p = findPax(gid, pid); if (p) { p.sarthiId = null; renderFlights(activeTab); } };
+
+    /* ---------- SARTHI ROSTER ---------- */
+    function renderRoster() {
+      document.getElementById("pane-roster").innerHTML = `
+        <div class="section-head"><h2>Sarthi Roster</h2><span class="count-note">${D.SARTHIS.length} sarthis</span></div>
+        <div class="card">
+          ${D.SARTHIS.map((s, i) => {
+            const v = D.VEHICLES.find((v) => v.driverId === s.id);
+            return `<div class="pax-row" style="border-bottom:${i === D.SARTHIS.length - 1 ? "none" : "1px solid var(--line-soft)"}">
+              <div class="avatar">${s.name[0]}</div>
+              <div class="grow">
+                <div class="name">${s.name}</div>
+                <div class="row wrap gap-4 mt-2">
+                  <span class="fgroup-meta">${icon("phone", { s: 12 })}${s.phone}</span>
+                  <span class="fgroup-meta">${icon("mail", { s: 12 })}${s.email}</span>
+                </div>
+                <div class="fgroup-meta mt-2">${icon("car", { s: 12 })}${v ? `${v.make} ${v.name} · ${v.number} · ${v.capacity} seats` : `<span class="muted" style="font-style:italic">No vehicle assigned</span>`}</div>
+              </div>
+              <span class="badge badge--ok">Sarthi</span>
+            </div>`;
+          }).join("")}
+        </div>`;
+    }
+
+    /* ---------- VEHICLES ---------- */
+    function renderVehicles() {
+      document.getElementById("pane-vehicles").innerHTML = `
+        <div class="section-head"><h2>Fleet Vehicles</h2><span class="count-note">${D.VEHICLES.length} vehicles</span></div>
+        <div class="card">
+          ${D.VEHICLES.map((v, i) => {
+            const drv = v.driverId ? D.SARTHIS.find((s) => s.id === v.driverId) : null;
+            return `<div class="pax-row" style="border-bottom:${i === D.VEHICLES.length - 1 ? "none" : "1px solid var(--line-soft)"}">
+              <div class="avatar avatar--blue">${icon("truck", { s: 18 })}</div>
+              <div class="grow">
+                <div class="row wrap gap-2"><span class="name">${v.make} ${v.name}</span><span class="tag">${v.type}</span><span class="muted" style="font-size:12.5px">${v.capacity} seats</span></div>
+                <div class="fgroup-meta mt-2">${v.number}</div>
+              </div>
+              <div class="row gap-2">
+                <select class="select-sm" onchange="assignVehicle('${v.id}',this.value)">
+                  <option value="" ${!drv ? "selected" : ""}>Unassigned</option>
+                  ${D.SARTHIS.map((s) => `<option value="${s.id}" ${drv && drv.id === s.id ? "selected" : ""}>${s.name}</option>`).join("")}
+                </select>
+                ${drv ? `<span class="badge badge--ok">${drv.name.split(" ")[0]}</span>` : ""}
+              </div>
+            </div>`;
+          }).join("")}
+        </div>`;
+    }
+    window.assignVehicle = (vid, sid) => {
+      const v = D.VEHICLES.find((x) => x.id === vid); if (!v) return;
+      if (sid) D.VEHICLES.forEach((x) => { if (x.driverId === sid) x.driverId = null; });
+      v.driverId = sid || null; renderVehicles(); renderRoster();
+    };
+
+    /* ---------- init ---------- */
+    renderBhaktos(); renderFlights("arrival"); renderFlights("departure"); renderRoster(); renderVehicles();
+  </script>
+</body>
+</html>

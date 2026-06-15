@@ -14,8 +14,13 @@ import {
   ChevronRight,
   Phone,
   MapPin,
+  Link2,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import { API_BASE } from "../lib/api";
+import { ShareLink } from "./ShareLink";
 
 interface Traveler {
   first_name: string;
@@ -26,6 +31,7 @@ interface Traveler {
 
 interface BhaktosRecord {
   id: string;
+  tracking_token: string | null;
   first_name: string;
   last_name: string;
   email: string;
@@ -53,7 +59,7 @@ interface Stats {
   arrival_and_departure_both: number;
 }
 
-const COL_COUNT = 13;
+const COL_COUNT = 14;
 
 function TransportBadge({ value }: { value: string }) {
   if (value === "Arrival Only")
@@ -77,17 +83,82 @@ function TransportBadge({ value }: { value: string }) {
   return <span className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>—</span>;
 }
 
-function StatCard({ icon, label, value, sub, accent }: { icon: React.ReactNode; label: string; value: number; sub: string; accent: string }) {
+function IntakeLinkChip() {
+  const url = `${window.location.origin}/intake`;
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
+  };
+
   return (
-    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: accent + "20" }}>
-          <span style={{ color: accent }}>{icon}</span>
-        </div>
-        <span className="text-muted-foreground leading-tight" style={{ fontSize: "0.75rem" }}>{label}</span>
-      </div>
-      <p style={{ fontSize: "2rem", fontWeight: 700, lineHeight: 1, color: accent }}>{value}</p>
-      <p className="text-muted-foreground" style={{ fontSize: "0.72rem" }}>{sub}</p>
+    <div
+      className="inline-flex items-center gap-2 rounded-full border"
+      style={{
+        background: "var(--accent-tint)",
+        borderColor: "var(--accent-line)",
+        padding: "4px 6px 4px 12px",
+        fontSize: 12,
+      }}
+    >
+      <Link2 className="w-3.5 h-3.5" style={{ color: "var(--accent)" }} />
+      <span className="font-mono truncate max-w-[180px] sm:max-w-[260px]" style={{ color: "var(--accent-strong)" }}>
+        /intake
+      </span>
+      <button
+        onClick={handleCopy}
+        className="iconbtn"
+        style={{ width: 26, height: 26, borderRadius: 999 }}
+        title={copied ? "Copied!" : "Copy intake link"}
+        aria-label="Copy intake link"
+      >
+        {copied ? <Check className="w-3.5 h-3.5" style={{ color: "var(--ok)" }} /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="iconbtn"
+        style={{ width: 26, height: 26, borderRadius: 999 }}
+        title="Open intake form"
+        aria-label="Open intake form"
+      >
+        <ExternalLink className="w-3.5 h-3.5" />
+      </a>
+    </div>
+  );
+}
+
+type StatTone = "info" | "ok" | "warn" | "violet" | "accent";
+const STAT_TONES: Record<StatTone, { bg: string; color: string }> = {
+  info:   { bg: "var(--info-tint)",   color: "var(--info)" },
+  ok:     { bg: "var(--ok-tint)",     color: "var(--ok)" },
+  warn:   { bg: "var(--warn-tint)",   color: "var(--warn)" },
+  violet: { bg: "var(--violet-tint)", color: "var(--violet)" },
+  accent: { bg: "var(--accent-tint)", color: "var(--accent)" },
+};
+
+function StatCard({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: number; sub: string; tone: StatTone }) {
+  const t = STAT_TONES[tone];
+  return (
+    <div className="stat">
+      <div className="stat-ic" style={{ background: t.bg, color: t.color }}>{icon}</div>
+      <div className="stat-label">{label}</div>
+      <div className="stat-value">{value}</div>
+      <div className="stat-sub">{sub}</div>
     </div>
   );
 }
@@ -215,7 +286,7 @@ export function BhaktosDashboard() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#0C71C3" }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--primary)" }} />
         <p style={{ fontSize: "0.88rem" }}>Loading Bhaktos data…</p>
       </div>
     );
@@ -241,23 +312,26 @@ export function BhaktosDashboard() {
   return (
     <div className="space-y-5">
       {/* Section title */}
-      <div className="flex items-center justify-between">
-        <h2 style={{ fontSize: "1rem", fontWeight: 700, color: "#173D61" }}>Travelling Bhaktos Overview</h2>
-        <button
-          onClick={fetchData}
-          className="flex items-center gap-1.5 text-accent hover:opacity-80 transition-opacity"
-          style={{ fontSize: "0.82rem", fontWeight: 500 }}
-        >
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
-        </button>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2>Travelling Bhaktos Overview</h2>
+        <div className="flex items-center gap-2">
+          <IntakeLinkChip />
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-1.5 text-accent hover:opacity-80 transition-opacity"
+            style={{ fontSize: "0.82rem", fontWeight: 500 }}
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard icon={<Users className="w-4 h-4" />}         label="Total Bhaktos"        value={stats?.total_bhaktos ?? 0}             sub="all registered"      accent="#0C71C3" />
-        <StatCard icon={<PlaneLanding className="w-4 h-4" />}  label="Total Arrivals Only"  value={stats?.arrivals_only ?? 0}             sub="arrival transport"   accent="#10B981" />
-        <StatCard icon={<PlaneTakeoff className="w-4 h-4" />}  label="Total Departures Only" value={stats?.departures_only ?? 0}          sub="departure transport" accent="#F59E0B" />
-        <StatCard icon={<ArrowLeftRight className="w-4 h-4" />} label="Total Arr &amp; Dep Both" value={stats?.arrival_and_departure_both ?? 0} sub="arrival + departure"  accent="#8B5CF6" />
+      <div className="stats">
+        <StatCard icon={<Users className="w-4 h-4" />}         label="Total Bhaktos"         value={stats?.total_bhaktos ?? 0}              sub="all registered"      tone="info" />
+        <StatCard icon={<PlaneLanding className="w-4 h-4" />}  label="Total Arrivals Only"   value={stats?.arrivals_only ?? 0}              sub="arrival transport"   tone="ok" />
+        <StatCard icon={<PlaneTakeoff className="w-4 h-4" />}  label="Total Departures Only" value={stats?.departures_only ?? 0}            sub="departure transport" tone="warn" />
+        <StatCard icon={<ArrowLeftRight className="w-4 h-4" />} label="Total Arr &amp; Dep Both" value={stats?.arrival_and_departure_both ?? 0} sub="arrival + departure" tone="violet" />
       </div>
 
       {/* Search bar */}
@@ -297,6 +371,7 @@ export function BhaktosDashboard() {
                   <TH>Departure Date/Time</TH>
                   <TH>Bags</TH>
                   <TH>Stroller</TH>
+                  <TH>Share</TH>
                 </tr>
               </thead>
               <tbody>
@@ -374,6 +449,16 @@ export function BhaktosDashboard() {
                           {r.stroller_required
                             ? <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded" style={{ fontSize: "0.7rem", fontWeight: 500 }}><Baby className="w-3 h-3" /> Yes</span>
                             : <span className="text-muted-foreground" style={{ fontSize: "0.75rem" }}>No</span>}
+                        </TD>
+                        <TD center>
+                          <div onClick={(e) => e.stopPropagation()}>
+                            <ShareLink
+                              trackingToken={r.tracking_token}
+                              passengerName={`${r.first_name} ${r.last_name}`.trim()}
+                              phone={r.phone}
+                              email={r.email}
+                            />
+                          </div>
                         </TD>
                       </tr>
 
