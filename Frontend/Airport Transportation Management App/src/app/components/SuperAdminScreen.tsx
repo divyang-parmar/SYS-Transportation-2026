@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle, Moon, Sun, Sparkles, Search, MapPin } from "lucide-react";
+import { UserPlus, Trash2, ShieldCheck, Truck, Users, Loader2, X, Mail, CheckCircle, LogOut, Bell, MessageSquare, FileText, Save, RotateCcw, ChevronDown, ChevronUp, Pencil, PlusCircle, Moon, Sun, Sparkles, Search, MapPin, KeyRound, Eye, EyeOff } from "lucide-react";
 import { registeredUsers, type Role, type User } from "../data/mockData";
 import { useTheme } from "../hooks/useTheme";
 import { MandalsTab } from "./MandalsTab";
+import { EventsTab } from "./EventsTab";
+import { ActiveEventBadge } from "./ActiveEventBadge";
 
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiFetch } from "../lib/api";
 const ADMIN_USERS_API = `${API_BASE}/admin-users`;
 const SARTHI_API      = `${API_BASE}/sarthi`;
 const EMAIL_API       = `${API_BASE}/email`;
@@ -19,6 +21,8 @@ interface Props {
   currentRole?: Role;
   availableRoles?: AvailableRole[];
   onSwitchRole?: (role: Role) => void;
+  superView?: "admin" | "ops";
+  onSwitchSuperView?: (v: "admin" | "ops") => void;
 }
 
 const roleLabels: Record<Role, string> = {
@@ -33,7 +37,7 @@ const roleBadge: Record<Role, string> = {
   driver: "badge--ok",
 };
 
-type AdminTab = "users" | "templates" | "vehicles" | "mandals";
+type AdminTab = "users" | "templates" | "vehicles" | "mandals" | "events";
 type TemplateChannel = "email" | "sms";
 
 interface NotificationTemplate {
@@ -94,6 +98,8 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
   },
 ];
 
+type VehicleOwnership = "rented" | "volunteer_provided" | "sarthi_owned";
+
 interface Vehicle {
   id: string;
   make: string;
@@ -102,12 +108,36 @@ interface Vehicle {
   type: string;
   capacity: number;
   assignedDriverId?: string;
+  ownership?: VehicleOwnership;
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerSarthiId?: string | null;
 }
+
+const OWNERSHIP_LABEL: Record<VehicleOwnership, string> = {
+  rented: "Rented",
+  volunteer_provided: "Volunteer-Provided",
+  sarthi_owned: "Sarthi-Owned",
+};
+
+const OWNERSHIP_STYLE: Record<VehicleOwnership, { bg: string; color: string }> = {
+  rented:             { bg: "color-mix(in srgb, #d97706 14%, var(--surface))", color: "#d97706" },
+  volunteer_provided: { bg: "color-mix(in srgb, #16a34a 14%, var(--surface))", color: "#16a34a" },
+  sarthi_owned:       { bg: "color-mix(in srgb, #7c3aed 14%, var(--surface))", color: "#7c3aed" },
+};
 
 interface ToastData {
   name: string;
   email: string;
   role: Role;
+}
+
+interface GroupedUser {
+  email: string;
+  name: string;
+  phone?: string;
+  roles: Role[];
+  idByRole: Record<Role, string>;
 }
 
 interface EmailPreviewData {
@@ -116,7 +146,7 @@ interface EmailPreviewData {
   role: Role;
 }
 
-export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitchRole }: Props) {
+export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitchRole, superView, onSwitchSuperView }: Props) {
   const { isDark, toggle } = useTheme();
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [users, setUsers] = useState<User[]>(registeredUsers.filter((u) => u.role !== "transportation_admin" && u.role !== "driver"));
@@ -125,6 +155,8 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState<Role>("driver");
   const [newPhone, setNewPhone] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [requirePhoto, setRequirePhoto] = useState(false);
   const [addError, setAddError] = useState("");
   const [conflictId, setConflictId] = useState<{ id: string; apiUrl: string } | null>(null);
   const [deleteError, setDeleteError] = useState("");
@@ -136,31 +168,47 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
   const [emailPreview, setEmailPreview] = useState<EmailPreviewData | null>(null);
   const [previewContent, setPreviewContent] = useState<{ subject: string; body: string } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [roleEditUser, setRoleEditUser] = useState<GroupedUser | null>(null);
+  const [passwordResetUser, setPasswordResetUser] = useState<GroupedUser | null>(null);
 
-  const filtered = users.filter((u) => {
+  const groupedUsers: GroupedUser[] = (() => {
+    const map = new Map<string, GroupedUser>();
+    for (const u of users) {
+      const key = u.email.toLowerCase();
+      const existing = map.get(key);
+      if (existing) {
+        if (!existing.roles.includes(u.role)) existing.roles.push(u.role);
+        existing.idByRole[u.role] = u.id;
+        if (!existing.phone && u.phone) existing.phone = u.phone;
+      } else {
+        map.set(key, {
+          email: u.email,
+          name: u.name,
+          phone: u.phone,
+          roles: [u.role],
+          idByRole: { [u.role]: u.id } as Record<Role, string>,
+        });
+      }
+    }
+    return Array.from(map.values());
+  })();
+
+  const filtered = groupedUsers.filter((g) => {
     const matchSearch =
-      u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchRole = filterRole === "all" || u.role === filterRole;
+      g.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      g.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchRole = filterRole === "all" || g.roles.includes(filterRole);
     return matchSearch && matchRole;
   });
 
   useEffect(() => {
     Promise.allSettled([
-      fetch(`${ADMIN_USERS_API}/`).then((r) => r.json()),
-      fetch(`${SARTHI_API}/`).then((r) => r.json()),
+      apiFetch(`${ADMIN_USERS_API}/`).then((r) => r.json()),
+      apiFetch(`${SARTHI_API}/`).then((r) => r.json()),
     ]).then(([taResult, sarthiResult]) => {
       const ta: User[]     = taResult.status     === "fulfilled" ? taResult.value     : [];
       const sarthi: User[] = sarthiResult.status === "fulfilled" ? sarthiResult.value : [];
-      setUsers((prev) => {
-        const seen = new Set<string>();
-        return [...prev, ...ta, ...sarthi].filter((u) => {
-          const key = u.email.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-      });
+      setUsers((prev) => [...prev, ...ta, ...sarthi]);
     });
   }, []);
 
@@ -192,7 +240,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
     const sub = (t: string) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{{${k}}}`, v), t);
 
     setPreviewLoading(true);
-    fetch(`${TEMPLATES_API}/`)
+    apiFetch(`${TEMPLATES_API}/`)
       .then((r) => r.json())
       .then((saved: NotificationTemplate[]) => {
         const tmpl = saved.find((t) => t.id === "email-invite" && !t.deleted);
@@ -220,7 +268,9 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
       setNewEmail("");
       setNewName("");
       setNewPhone("");
+      setNewPassword("");
       setNewRole("driver");
+      setRequirePhoto(false);
       setShowAddForm(false);
       setIsSending(false);
       setAddError("");
@@ -229,14 +279,14 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
     if (newRole === "transportation_admin" || newRole === "driver") {
       const apiUrl = newRole === "transportation_admin" ? ADMIN_USERS_API : SARTHI_API;
       try {
-        const res = await fetch(`${apiUrl}/`, {
+        const res = await apiFetch(`${apiUrl}/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newName, email: newEmail, role: newRole, phone: newPhone }),
+          body: JSON.stringify({ name: newName, email: newEmail, role: newRole, phone: newPhone, must_upload_photo: requirePhoto, ...(newPassword ? { password: newPassword } : {}) }),
         });
         if (res.ok) {
           const newUser = await res.json();
-          fetch(`${EMAIL_API}/send-invite`, {
+          apiFetch(`${EMAIL_API}/send-invite`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: newName, email: newEmail, role: newRole }),
@@ -272,7 +322,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
 
       if (deleteUrl) {
         try {
-          const res = await fetch(deleteUrl, { method: "DELETE" });
+          const res = await apiFetch(deleteUrl, { method: "DELETE" });
           if (!res.ok) {
             setDeleteError(`Could not delete ${target?.name ?? "user"}. Please try again.`);
             setTimeout(() => setDeleteError(""), 4000);
@@ -298,7 +348,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
       user.role === "driver" ? `${SARTHI_API}/${user.id}` :
       `${ADMIN_USERS_API}/${user.id}`;
     try {
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -319,11 +369,87 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
     }
   };
 
+  const handleSaveRoles = async (group: GroupedUser, nextRoles: Set<Role>): Promise<{ ok: boolean; error?: string }> => {
+    const currentRoles = new Set(group.roles);
+    const toAdd: Role[] = Array.from(nextRoles).filter((r) => !currentRoles.has(r));
+    const toRemove: Role[] = Array.from(currentRoles).filter((r) => !nextRoles.has(r));
+
+    for (const r of toAdd) {
+      if (r === "super_admin") continue; // managed in code today
+      if (r === "transportation_admin" && currentRoles.has("super_admin")) continue; // shared collection
+      const apiUrl = r === "transportation_admin" ? ADMIN_USERS_API : SARTHI_API;
+      try {
+        const res = await apiFetch(`${apiUrl}/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: group.name, email: group.email, role: r, phone: group.phone ?? "" }),
+        });
+        if (res.status === 409) {
+          // already exists for this role — treat as success
+          continue;
+        }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: body.detail || body.error || `Add ${roleLabels[r]} failed` };
+        }
+        const created = await res.json();
+        setUsers((prev) => [...prev, { id: created.id ?? created._id ?? `tmp-${Date.now()}`, name: group.name, email: group.email, role: r, phone: group.phone }]);
+      } catch {
+        return { ok: false, error: "Network error" };
+      }
+    }
+
+    for (const r of toRemove) {
+      if (r === "super_admin") continue;
+      const id = group.idByRole[r];
+      if (!id) continue;
+      const apiUrl = r === "transportation_admin" ? ADMIN_USERS_API : SARTHI_API;
+      try {
+        const res = await apiFetch(`${apiUrl}/${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          return { ok: false, error: `Remove ${roleLabels[r]} failed` };
+        }
+        setUsers((prev) => prev.filter((u) => u.id !== id));
+      } catch {
+        return { ok: false, error: "Network error" };
+      }
+    }
+    return { ok: true };
+  };
+
+  const handleResetPassword = async (group: GroupedUser, password: string): Promise<{ ok: boolean; error?: string }> => {
+    if (password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
+    const targets: { url: string; role: Role }[] = [];
+    for (const r of group.roles) {
+      const id = group.idByRole[r];
+      if (!id || !/^[0-9a-f]{24}$/.test(id)) continue;
+      if (r === "driver") targets.push({ url: `${SARTHI_API}/${id}`, role: r });
+      else if (r === "transportation_admin" || r === "super_admin") targets.push({ url: `${ADMIN_USERS_API}/${id}`, role: r });
+    }
+    if (targets.length === 0) return { ok: false, error: "No backend record to update." };
+    for (const t of targets) {
+      try {
+        const res = await apiFetch(t.url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          return { ok: false, error: body.detail || body.error || `Reset ${roleLabels[t.role]} failed` };
+        }
+      } catch {
+        return { ok: false, error: "Network error" };
+      }
+    }
+    return { ok: true };
+  };
+
   const counts = {
-    total: users.length,
-    super_admin: users.filter((u) => u.role === "super_admin").length,
-    transportation_admin: users.filter((u) => u.role === "transportation_admin").length,
-    driver: users.filter((u) => u.role === "driver").length,
+    total: groupedUsers.length,
+    super_admin: groupedUsers.filter((g) => g.roles.includes("super_admin")).length,
+    transportation_admin: groupedUsers.filter((g) => g.roles.includes("transportation_admin")).length,
+    driver: groupedUsers.filter((g) => g.roles.includes("driver")).length,
   };
 
   const showPreviewNote = newName.trim() && newEmail.trim();
@@ -340,11 +466,21 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
             <h1 className="text-[15px] font-semibold text-[var(--head)] leading-tight">Super Admin Panel</h1>
             <p className="text-xs text-muted-foreground uppercase tracking-[0.08em]">Manage roles and access</p>
           </div>
+          <ActiveEventBadge />
           <div className="iconbtn" title="Super Admin">
             <ShieldCheck className="w-[18px] h-[18px] text-[var(--violet)]" />
           </div>
           {currentRole && availableRoles && onSwitchRole && (
             <RoleSwitcher current={currentRole} available={availableRoles} onSwitch={onSwitchRole} />
+          )}
+          {currentRole === "super_admin" && onSwitchSuperView && (
+            <button
+              onClick={() => onSwitchSuperView(superView === "ops" ? "admin" : "ops")}
+              className="btn btn--ghost btn--sm"
+              title="Switch view"
+            >
+              {superView === "ops" ? "Admin View" : "Operations View"}
+            </button>
           )}
           <button onClick={toggle} className="iconbtn" title="Toggle theme">
             {isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
@@ -360,6 +496,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
         <div className="max-w-[1240px] w-full mx-auto px-7 flex gap-0.5 overflow-x-auto scrollbar-hide">
           {([
             { id: "users" as AdminTab, label: "Users", icon: <Users className="w-4 h-4" /> },
+            { id: "events" as AdminTab, label: "Events", icon: <Sparkles className="w-4 h-4" /> },
             { id: "templates" as AdminTab, label: "Notification Templates", icon: <Bell className="w-4 h-4" /> },
             { id: "vehicles" as AdminTab, label: "Vehicles", icon: <Truck className="w-4 h-4" /> },
             { id: "mandals" as AdminTab, label: "Mandals", icon: <MapPin className="w-4 h-4" /> },
@@ -504,13 +641,24 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
                       <label className="block mb-1.5">Phone Number</label>
                       <input
                         type="tel"
-                        placeholder="+91 98765 43210"
+                        placeholder="+1 555 555 5555"
                         value={newPhone}
                         onChange={(e) => setNewPhone(e.target.value)}
                         className="input-warm"
                       />
                     </div>
                   )}
+                  <div className="sm:col-span-2">
+                    <label className="block mb-1.5">Password <span className="text-muted-foreground" style={{ fontWeight: 400 }}>(optional — enables email/password sign-in)</span></label>
+                    <input
+                      type="password"
+                      placeholder="At least 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="input-warm"
+                      autoComplete="new-password"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="block mb-1.5">Assign Role</label>
@@ -535,6 +683,16 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
                     ))}
                   </div>
                 </div>
+                <label className="inline-flex items-center gap-2 cursor-pointer" style={{ marginTop: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={requirePhoto}
+                    onChange={(e) => setRequirePhoto(e.target.checked)}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--head)" }}>
+                    Require a profile photo on first login
+                  </span>
+                </label>
 
                 {showPreviewNote && (
                   <div className="flex items-start gap-2 px-3 py-2.5 rounded-[var(--r-sm)]" style={{ background: "var(--surface)", border: "1px solid var(--line)" }}>
@@ -554,7 +712,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
                     {conflictId && (
                       <button
                         onClick={async () => {
-                          await fetch(`${conflictId.apiUrl}/${conflictId.id}`, { method: "DELETE" });
+                          await apiFetch(`${conflictId.apiUrl}/${conflictId.id}`, { method: "DELETE" });
                           setAddError("");
                           setConflictId(null);
                           setUsers((prev) => prev.filter((u) => u.id !== conflictId.id));
@@ -570,7 +728,7 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
 
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewRole("driver"); setAddError(""); setConflictId(null); }}
+                    onClick={() => { setShowAddForm(false); setNewEmail(""); setNewName(""); setNewPhone(""); setNewPassword(""); setNewRole("driver"); setRequirePhoto(false); setAddError(""); setConflictId(null); }}
                     className="btn btn--ghost"
                     disabled={isSending}
                   >
@@ -616,14 +774,24 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
                 </div>
               ) : (
                 <ul className="divide-y divide-[var(--line-soft)]">
-                  {filtered.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      roleLabel={roleLabels[user.role]}
-                      roleBadgeClass={roleBadge[user.role]}
-                      onRename={(patch) => handleRename(user, patch)}
-                      onDelete={() => handleDelete(user.id)}
+                  {filtered.map((group) => (
+                    <GroupedUserRow
+                      key={group.email.toLowerCase()}
+                      group={group}
+                      onRename={(patch) => {
+                        const primaryRole = group.roles[0];
+                        const u = users.find((x) => x.id === group.idByRole[primaryRole]);
+                        if (!u) return Promise.resolve({ ok: false, error: "Not found" });
+                        return handleRename(u, patch);
+                      }}
+                      onEditRoles={() => setRoleEditUser(group)}
+                      onResetPassword={() => setPasswordResetUser(group)}
+                      onDeleteAll={async () => {
+                        for (const r of group.roles) {
+                          const id = group.idByRole[r];
+                          if (id) await handleDelete(id);
+                        }
+                      }}
                     />
                   ))}
                 </ul>
@@ -637,6 +805,8 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
         {activeTab === "vehicles" && <VehiclesTab />}
 
         {activeTab === "mandals" && <MandalsTab />}
+
+        {activeTab === "events" && <EventsTab />}
       </div>
 
       {/* Toast */}
@@ -735,6 +905,30 @@ export function SuperAdminScreen({ onBack, currentRole, availableRoles, onSwitch
           </div>
         </div>
       )}
+
+      {roleEditUser && (
+        <RoleEditModal
+          group={roleEditUser}
+          onClose={() => setRoleEditUser(null)}
+          onSave={async (nextRoles) => {
+            const res = await handleSaveRoles(roleEditUser, nextRoles);
+            if (res.ok) setRoleEditUser(null);
+            return res;
+          }}
+        />
+      )}
+
+      {passwordResetUser && (
+        <PasswordResetModal
+          group={passwordResetUser}
+          onClose={() => setPasswordResetUser(null)}
+          onSave={async (password) => {
+            const res = await handleResetPassword(passwordResetUser, password);
+            if (res.ok) setPasswordResetUser(null);
+            return res;
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -760,26 +954,41 @@ function StatCard({ icon, label, value, sub, tone }: { icon: ReactNode; label: s
   );
 }
 
+const VEHICLE_TYPE_STYLE: Record<string, { bg: string; color: string }> = {
+  SUV:     { bg: "color-mix(in srgb, #0C71C3 14%, var(--surface))", color: "#0C71C3" },
+  Minivan: { bg: "color-mix(in srgb, #0C71C3 14%, var(--surface))", color: "#0C71C3" },
+  Van:     { bg: "color-mix(in srgb, #16a34a 14%, var(--surface))", color: "#16a34a" },
+  Sedan:   { bg: "color-mix(in srgb, #7c3aed 14%, var(--surface))", color: "#7c3aed" },
+  Bus:     { bg: "color-mix(in srgb, #d97706 14%, var(--surface))", color: "#d97706" },
+  Truck:   { bg: "color-mix(in srgb, #d97706 14%, var(--surface))", color: "#d97706" },
+};
+
 function VehiclesTab() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [sarthiMap, setSarthiMap] = useState<Map<string, string>>(new Map());
   const [vehiclesLoading, setVehiclesLoading] = useState(false);
   const [showAddVehicle, setShowAddVehicle] = useState(false);
-  const [vehicleForm, setVehicleForm] = useState({ make: "", name: "", vehicleNumber: "", type: "MUV", capacity: "7" });
+  const [vehicleForm, setVehicleForm] = useState({ make: "", name: "", vehicleNumber: "", type: "SUV", capacity: "7", ownership: "rented" as VehicleOwnership, ownerName: "", ownerPhone: "" });
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [editVehicleForm, setEditVehicleForm] = useState<Omit<Vehicle, "id" | "assignedDriverId">>({ make: "", name: "", vehicleNumber: "", type: "MUV", capacity: 7 });
+  const [editVehicleForm, setEditVehicleForm] = useState<{ make: string; name: string; vehicleNumber: string; type: string; capacity: number; ownership: VehicleOwnership; ownerName: string; ownerPhone: string }>({ make: "", name: "", vehicleNumber: "", type: "SUV", capacity: 7, ownership: "rented", ownerName: "", ownerPhone: "" });
 
   useEffect(() => {
     setVehiclesLoading(true);
-    fetch(`${VEHICLES_API}/`)
-      .then((r) => r.json())
-      .then((data: Vehicle[]) => setVehicles(data))
+    Promise.all([
+      apiFetch(`${VEHICLES_API}/`).then((r) => r.json()),
+      apiFetch(`${SARTHI_API}/`).then((r) => r.json()).catch(() => []),
+    ])
+      .then(([vehicleData, sarthiData]: [Vehicle[], { id: string; name: string }[]]) => {
+        setVehicles(vehicleData);
+        setSarthiMap(new Map((sarthiData ?? []).map((s) => [s.id, s.name])));
+      })
       .catch(() => {})
       .finally(() => setVehiclesLoading(false));
   }, []);
 
   const handleAddVehicle = async () => {
     if (!vehicleForm.make || !vehicleForm.name || !vehicleForm.vehicleNumber) return;
-    const res = await fetch(`${VEHICLES_API}/`, {
+    const res = await apiFetch(`${VEHICLES_API}/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -788,18 +997,21 @@ function VehiclesTab() {
         vehicleNumber: vehicleForm.vehicleNumber,
         type: vehicleForm.type,
         capacity: parseInt(vehicleForm.capacity) || 7,
+        ownership: vehicleForm.ownership,
+        ownerName: vehicleForm.ownership === "volunteer_provided" ? vehicleForm.ownerName : "",
+        ownerPhone: vehicleForm.ownership === "volunteer_provided" ? vehicleForm.ownerPhone : "",
       }),
     });
     if (res.ok) {
       const created: Vehicle = await res.json();
       setVehicles((prev) => [...prev, created]);
     }
-    setVehicleForm({ make: "", name: "", vehicleNumber: "", type: "MUV", capacity: "7" });
+    setVehicleForm({ make: "", name: "", vehicleNumber: "", type: "SUV", capacity: "7", ownership: "rented", ownerName: "", ownerPhone: "" });
     setShowAddVehicle(false);
   };
 
   const handleDeleteVehicle = async (vehicleId: string) => {
-    const res = await fetch(`${VEHICLES_API}/${vehicleId}`, { method: "DELETE" });
+    const res = await apiFetch(`${VEHICLES_API}/${vehicleId}`, { method: "DELETE" });
     if (res.ok || res.status === 204) {
       setVehicles((prev) => prev.filter((v) => v.id !== vehicleId));
     }
@@ -807,14 +1019,28 @@ function VehiclesTab() {
 
   const handleEditVehicle = (vehicle: Vehicle) => {
     setEditingVehicleId(vehicle.id);
-    setEditVehicleForm({ make: vehicle.make, name: vehicle.name, vehicleNumber: vehicle.vehicleNumber, type: vehicle.type, capacity: vehicle.capacity });
+    setEditVehicleForm({
+      make: vehicle.make,
+      name: vehicle.name,
+      vehicleNumber: vehicle.vehicleNumber,
+      type: vehicle.type,
+      capacity: vehicle.capacity,
+      ownership: vehicle.ownership ?? "rented",
+      ownerName: vehicle.ownerName ?? "",
+      ownerPhone: vehicle.ownerPhone ?? "",
+    });
   };
 
   const handleSaveVehicle = async (vehicleId: string) => {
-    const res = await fetch(`${VEHICLES_API}/${vehicleId}`, {
+    const payload = {
+      ...editVehicleForm,
+      ownerName: editVehicleForm.ownership === "volunteer_provided" ? editVehicleForm.ownerName : "",
+      ownerPhone: editVehicleForm.ownership === "volunteer_provided" ? editVehicleForm.ownerPhone : "",
+    };
+    const res = await apiFetch(`${VEHICLES_API}/${vehicleId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(editVehicleForm),
+      body: JSON.stringify(payload),
     });
     if (res.ok) {
       const updated: Vehicle = await res.json();
@@ -825,14 +1051,21 @@ function VehiclesTab() {
 
   const fields: { key: "make" | "name" | "vehicleNumber"; label: string; placeholder: string }[] = [
     { key: "make", label: "Make", placeholder: "Toyota" },
-    { key: "name", label: "Model / Name", placeholder: "Innova Crysta" },
-    { key: "vehicleNumber", label: "Vehicle Number", placeholder: "GJ 01 AB 1234" },
+    { key: "name", label: "Model / Name", placeholder: "Sienna" },
+    { key: "vehicleNumber", label: "License Plate", placeholder: "ABC 1234" },
   ];
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-[18px] font-semibold text-[var(--head)]">Fleet Vehicles</h2>
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-[18px] font-semibold text-[var(--head)]">Fleet Vehicles</h2>
+          {vehicles.length > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--primary-tint)] text-[var(--primary)]">
+              {vehicles.length} {vehicles.length === 1 ? "vehicle" : "vehicles"}
+            </span>
+          )}
+        </div>
         <button
           onClick={() => { setShowAddVehicle(!showAddVehicle); setEditingVehicleId(null); }}
           className="btn btn--accent"
@@ -873,7 +1106,7 @@ function VehiclesTab() {
                 onChange={(e) => setVehicleForm({ ...vehicleForm, type: e.target.value })}
                 className="input-warm"
               >
-                {["SUV", "MUV", "Van", "Tempo Traveller", "Bus", "Sedan"].map((t) => <option key={t} value={t}>{t}</option>)}
+                {["SUV", "Minivan", "Van", "Bus", "Sedan", "Truck"].map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
             <div>
@@ -886,6 +1119,42 @@ function VehiclesTab() {
                 {[4, 5, 6, 7, 8, 10, 12, 14, 20, 30].map((n) => <option key={n} value={n}>{n} seats</option>)}
               </select>
             </div>
+            <div>
+              <label className="block mb-1.5">Ownership</label>
+              <select
+                value={vehicleForm.ownership}
+                onChange={(e) => setVehicleForm({ ...vehicleForm, ownership: e.target.value as VehicleOwnership })}
+                className="input-warm"
+              >
+                <option value="rented">Rented for event</option>
+                <option value="volunteer_provided">Volunteer-provided</option>
+                <option value="sarthi_owned">Sarthi-owned</option>
+              </select>
+            </div>
+            {vehicleForm.ownership === "volunteer_provided" && (
+              <>
+                <div>
+                  <label className="block mb-1.5">Volunteer Name</label>
+                  <input
+                    type="text"
+                    placeholder="Volunteer's full name"
+                    value={vehicleForm.ownerName}
+                    onChange={(e) => setVehicleForm({ ...vehicleForm, ownerName: e.target.value })}
+                    className="input-warm"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1.5">Volunteer Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="(555) 123-4567"
+                    value={vehicleForm.ownerPhone}
+                    onChange={(e) => setVehicleForm({ ...vehicleForm, ownerPhone: e.target.value })}
+                    className="input-warm"
+                  />
+                </div>
+              </>
+            )}
           </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowAddVehicle(false)} className="btn btn--ghost">Cancel</button>
@@ -933,7 +1202,7 @@ function VehiclesTab() {
                             onChange={(e) => setEditVehicleForm({ ...editVehicleForm, type: e.target.value })}
                             className="input-warm"
                           >
-                            {["SUV", "MUV", "Van", "Tempo Traveller", "Bus", "Sedan"].map((t) => <option key={t} value={t}>{t}</option>)}
+                            {["SUV", "Minivan", "Van", "Bus", "Sedan", "Truck"].map((t) => <option key={t} value={t}>{t}</option>)}
                           </select>
                         </div>
                         <div>
@@ -946,6 +1215,42 @@ function VehiclesTab() {
                             {[4, 5, 6, 7, 8, 10, 12, 14, 20, 30].map((n) => <option key={n} value={n}>{n} seats</option>)}
                           </select>
                         </div>
+                        <div>
+                          <label className="block mb-1.5">Ownership</label>
+                          <select
+                            value={editVehicleForm.ownership}
+                            onChange={(e) => setEditVehicleForm({ ...editVehicleForm, ownership: e.target.value as VehicleOwnership })}
+                            className="input-warm"
+                          >
+                            <option value="rented">Rented for event</option>
+                            <option value="volunteer_provided">Volunteer-provided</option>
+                            <option value="sarthi_owned">Sarthi-owned</option>
+                          </select>
+                        </div>
+                        {editVehicleForm.ownership === "volunteer_provided" && (
+                          <>
+                            <div>
+                              <label className="block mb-1.5">Volunteer Name</label>
+                              <input
+                                type="text"
+                                placeholder="Volunteer's full name"
+                                value={editVehicleForm.ownerName}
+                                onChange={(e) => setEditVehicleForm({ ...editVehicleForm, ownerName: e.target.value })}
+                                className="input-warm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block mb-1.5">Volunteer Phone</label>
+                              <input
+                                type="tel"
+                                placeholder="(555) 123-4567"
+                                value={editVehicleForm.ownerPhone}
+                                onChange={(e) => setEditVehicleForm({ ...editVehicleForm, ownerPhone: e.target.value })}
+                                className="input-warm"
+                              />
+                            </div>
+                          </>
+                        )}
                       </div>
                       <div className="flex justify-end gap-2">
                         <button onClick={() => setEditingVehicleId(null)} className="btn btn--ghost btn--sm">Cancel</button>
@@ -954,7 +1259,13 @@ function VehiclesTab() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-3 flex-wrap">
-                      <div className="avatar-warm avatar-warm--blue">
+                      <div
+                        className="avatar-warm"
+                        style={{
+                          background: (VEHICLE_TYPE_STYLE[vehicle.type] ?? VEHICLE_TYPE_STYLE.SUV).bg,
+                          color: (VEHICLE_TYPE_STYLE[vehicle.type] ?? VEHICLE_TYPE_STYLE.SUV).color,
+                        }}
+                      >
                         <Truck className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -962,8 +1273,31 @@ function VehiclesTab() {
                           <p className="text-[var(--head)] text-sm font-semibold">{vehicle.make} {vehicle.name}</p>
                           <span className="tag-chip">{vehicle.type}</span>
                           <span className="text-muted-foreground text-xs">{vehicle.capacity} seats</span>
+                          {vehicle.ownership && (
+                            <span
+                              className="text-[11px] font-semibold px-1.5 py-0.5 rounded"
+                              style={{
+                                background: OWNERSHIP_STYLE[vehicle.ownership].bg,
+                                color: OWNERSHIP_STYLE[vehicle.ownership].color,
+                              }}
+                            >
+                              {OWNERSHIP_LABEL[vehicle.ownership]}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-muted-foreground text-xs">{vehicle.vehicleNumber}</p>
+                        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                          <p className="text-muted-foreground text-xs">{vehicle.vehicleNumber}</p>
+                          {vehicle.ownership === "volunteer_provided" && vehicle.ownerName && (
+                            <span className="text-xs text-muted-foreground">&#x2022; {vehicle.ownerName}{vehicle.ownerPhone ? ` (${vehicle.ownerPhone})` : ""}</span>
+                          )}
+                          {vehicle.assignedDriverId && sarthiMap.get(vehicle.assignedDriverId) ? (
+                            <span className="text-xs text-[#16a34a] font-medium">
+                              &#x2022; {sarthiMap.get(vehicle.assignedDriverId)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/60">&#x2022; Unassigned</span>
+                          )}
+                        </div>
                       </div>
                       <button onClick={() => handleEditVehicle(vehicle)} className="iconbtn" style={{ width: 34, height: 34 }} title="Edit">
                         <Pencil className="w-3.5 h-3.5" />
@@ -994,7 +1328,7 @@ function TemplatesTab() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${TEMPLATES_API}/`)
+    apiFetch(`${TEMPLATES_API}/`)
       .then((r) => r.json())
       .then((saved: NotificationTemplate[]) => {
         setTemplates(
@@ -1005,7 +1339,7 @@ function TemplatesTab() {
         );
         DEFAULT_TEMPLATES.forEach((def) => {
           if (!saved.find((s) => s.id === def.id)) {
-            fetch(`${TEMPLATES_API}/${def.id}`, {
+            apiFetch(`${TEMPLATES_API}/${def.id}`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -1041,7 +1375,7 @@ function TemplatesTab() {
     setIsSaving(true);
     const updated: NotificationTemplate = { ...t, subject: draftSubject || undefined, body: draftBody };
     try {
-      const res = await fetch(`${TEMPLATES_API}/${id}`, {
+      const res = await apiFetch(`${TEMPLATES_API}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1065,7 +1399,7 @@ function TemplatesTab() {
   const resetTemplate = async (id: string) => {
     const original = DEFAULT_TEMPLATES.find((t) => t.id === id);
     if (!original) return;
-    await fetch(`${TEMPLATES_API}/${id}`, { method: "DELETE" }).catch(() => {});
+    await apiFetch(`${TEMPLATES_API}/${id}`, { method: "DELETE" }).catch(() => {});
     setTemplates((prev) => prev.map((t) => (t.id === id ? { ...original } : t)));
     if (editingId === id) {
       setDraftSubject(original.subject ?? "");
@@ -1077,7 +1411,7 @@ function TemplatesTab() {
     const t = templates.find((t) => t.id === id);
     if (!t) return;
     try {
-      await fetch(`${TEMPLATES_API}/${id}`, {
+      await apiFetch(`${TEMPLATES_API}/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1098,7 +1432,7 @@ function TemplatesTab() {
   const restoreTemplate = async (id: string) => {
     const original = DEFAULT_TEMPLATES.find((t) => t.id === id);
     if (!original) return;
-    await fetch(`${TEMPLATES_API}/${id}`, { method: "DELETE" }).catch(() => {});
+    await apiFetch(`${TEMPLATES_API}/${id}`, { method: "DELETE" }).catch(() => {});
     setTemplates((prev) => prev.map((t) => (t.id === id ? { ...original } : t)));
   };
 
@@ -1445,6 +1779,351 @@ function UserRow({
         </button>
       )}
     </li>
+  );
+}
+
+function GroupedUserRow({
+  group, onRename, onEditRoles, onResetPassword, onDeleteAll,
+}: {
+  group: GroupedUser;
+  onRename: (patch: { name?: string; phone?: string }) => Promise<{ ok: boolean; error?: string }>;
+  onEditRoles: () => void;
+  onResetPassword: () => void;
+  onDeleteAll: () => void;
+}) {
+  const [editingField, setEditingField] = useState<"name" | "phone" | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [rowError, setRowError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingField === "name") setDraft(group.name);
+    if (editingField === "phone") setDraft(group.phone ?? "");
+    setRowError("");
+    if (editingField) requestAnimationFrame(() => inputRef.current?.select());
+  }, [editingField, group.name, group.phone]);
+
+  const cancel = () => { setEditingField(null); setRowError(""); };
+
+  const save = async () => {
+    const next = draft.trim();
+    const current = editingField === "name" ? group.name : (group.phone ?? "");
+    if (editingField === "name" && !next) { cancel(); return; }
+    if (next === current) { cancel(); return; }
+    setSaving(true);
+    const result = await onRename(editingField === "name" ? { name: next } : { phone: next });
+    setSaving(false);
+    if (!result.ok) {
+      setRowError(result.error || "Save failed");
+      return;
+    }
+    setEditingField(null);
+  };
+
+  return (
+    <li className="px-5 py-3.5 flex items-center gap-3 hover:bg-[var(--surface-2)] transition-colors group">
+      <div className="avatar-warm">{group.name.charAt(0)}</div>
+      <div className="flex-1 min-w-0">
+        {editingField === "name" ? (
+          <InlineEditInput
+            inputRef={inputRef}
+            value={draft}
+            saving={saving}
+            error={rowError}
+            placeholder="Full name"
+            maxLength={160}
+            onChange={(v) => { setDraft(v); setRowError(""); }}
+            onSave={save}
+            onCancel={cancel}
+          />
+        ) : (
+          <button
+            type="button"
+            className="block w-full text-left truncate text-[var(--head)] text-sm font-semibold"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "text" }}
+            onClick={() => setEditingField("name")}
+            title="Click to rename"
+          >
+            {group.name}
+          </button>
+        )}
+        <p className="text-muted-foreground truncate text-xs">{group.email}</p>
+        {editingField === "phone" ? (
+          <div className="mt-1">
+            <InlineEditInput
+              inputRef={inputRef}
+              value={draft}
+              saving={saving}
+              error={rowError}
+              placeholder="+1 555 555 5555"
+              maxLength={32}
+              onChange={(v) => { setDraft(v); setRowError(""); }}
+              onSave={save}
+              onCancel={cancel}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="block text-left text-muted-foreground truncate text-xs"
+            style={{ background: "transparent", border: "none", padding: 0, cursor: "text" }}
+            onClick={() => setEditingField("phone")}
+            title={group.phone ? "Click to edit phone" : "Click to add phone"}
+          >
+            {group.phone || <span style={{ fontStyle: "italic" }}>add phone</span>}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+        {group.roles.map((r) => (
+          <span key={r} className={`badge-pill ${roleBadge[r]}`}>{roleLabels[r]}</span>
+        ))}
+      </div>
+      {editingField === null && (
+        <>
+          <button
+            onClick={onEditRoles}
+            className="iconbtn"
+            style={{ width: 34, height: 34 }}
+            title="Edit roles"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onResetPassword}
+            className="iconbtn"
+            style={{ width: 34, height: 34 }}
+            title="Reset password"
+          >
+            <KeyRound className="w-4 h-4" />
+          </button>
+          <button
+            onClick={onDeleteAll}
+            className="iconbtn"
+            style={{ width: 34, height: 34 }}
+            title="Remove user from all roles"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </>
+      )}
+    </li>
+  );
+}
+
+function RoleEditModal({
+  group, onClose, onSave,
+}: {
+  group: GroupedUser;
+  onClose: () => void;
+  onSave: (nextRoles: Set<Role>) => Promise<{ ok: boolean; error?: string }>;
+}) {
+  const [selected, setSelected] = useState<Set<Role>>(new Set(group.roles));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const toggle = (r: Role) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(r)) next.delete(r);
+      else next.add(r);
+      return next;
+    });
+  };
+
+  const save = async () => {
+    if (selected.size === 0) {
+      setErr("Pick at least one role, or use Delete to remove this user.");
+      return;
+    }
+    setSaving(true);
+    const res = await onSave(selected);
+    setSaving(false);
+    if (!res.ok) setErr(res.error || "Save failed");
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(20,12,6,0.42)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="card-warm shadow-warm-3 w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
+          <div>
+            <p className="text-[15px] font-semibold text-[var(--head)]">{group.name}</p>
+            <p className="text-xs text-muted-foreground">{group.email}</p>
+          </div>
+          <button onClick={onClose} className="iconbtn" style={{ width: 32, height: 32 }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground mb-1">Roles</p>
+          {(["super_admin", "transportation_admin", "driver"] as Role[]).map((r) => {
+            const isSuper = r === "super_admin";
+            const hasSuper = selected.has("super_admin");
+            const disabled = isSuper || (r === "transportation_admin" && hasSuper);
+            return (
+              <label
+                key={r}
+                className="flex items-center gap-3 px-3 py-2 rounded-[var(--r-sm)]"
+                style={{
+                  background: selected.has(r) ? "var(--accent-tint)" : "var(--surface-2)",
+                  border: `1px solid ${selected.has(r) ? "var(--accent-line)" : "var(--line)"}`,
+                  opacity: disabled ? 0.55 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(r)}
+                  disabled={disabled}
+                  onChange={() => toggle(r)}
+                />
+                <span className="text-sm font-medium text-[var(--head)]">{roleLabels[r]}</span>
+                {isSuper && (
+                  <span className="ml-auto text-[11px] text-muted-foreground">configured in code</span>
+                )}
+                {r === "transportation_admin" && hasSuper && (
+                  <span className="ml-auto text-[11px] text-muted-foreground">covered by Super Admin</span>
+                )}
+              </label>
+            );
+          })}
+          <p className="text-[11px] text-muted-foreground mt-3" style={{ lineHeight: 1.5 }}>
+            A user can be either Super Admin or Transportation Admin, plus Sarthi.
+          </p>
+          {err && (
+            <p className="text-sm text-[var(--danger)] mt-2">{err}</p>
+          )}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--line)]">
+          <button className="btn btn--ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn--accent" onClick={save} disabled={saving}>
+            {saving ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>) : (<><Save className="w-4 h-4" /> Save</>)}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PasswordResetModal({
+  group, onClose, onSave,
+}: {
+  group: GroupedUser;
+  onClose: () => void;
+  onSave: (password: string) => Promise<{ ok: boolean; error?: string }>;
+}) {
+  const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const [done, setDone] = useState(false);
+
+  const valid = pw.length >= 6 && pw === confirm;
+  const mismatch = confirm.length > 0 && pw !== confirm;
+
+  const save = async () => {
+    if (!valid) return;
+    setSaving(true);
+    setErr("");
+    const res = await onSave(pw);
+    setSaving(false);
+    if (!res.ok) {
+      setErr(res.error || "Reset failed");
+      return;
+    }
+    setDone(true);
+    setTimeout(onClose, 1200);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(20,12,6,0.42)", backdropFilter: "blur(4px)" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="card-warm shadow-warm-3 w-full max-w-md overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--line)]">
+          <div className="flex items-center gap-2">
+            <KeyRound className="w-4 h-4 text-muted-foreground" />
+            <div>
+              <p className="text-[15px] font-semibold text-[var(--head)]">Reset password</p>
+              <p className="text-xs text-muted-foreground">{group.name} · {group.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="iconbtn" style={{ width: 32, height: 32 }}>
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {done ? (
+          <div className="px-6 py-8 text-center">
+            <div className="mx-auto mb-3 w-12 h-12 rounded-full flex items-center justify-center" style={{ background: "var(--ok-tint)" }}>
+              <CheckCircle className="w-6 h-6" style={{ color: "var(--ok)" }} />
+            </div>
+            <p className="text-sm font-semibold text-[var(--head)]">Password updated</p>
+            <p className="text-xs text-muted-foreground mt-1">Share the new password with the user securely.</p>
+          </div>
+        ) : (
+          <>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-[12.5px] text-muted-foreground" style={{ lineHeight: 1.5 }}>
+                The user will use this password the next time they sign in with email and password. They will not be notified automatically — share it securely.
+              </p>
+              <div>
+                <label className="block mb-1.5">New password</label>
+                <div className="flex items-stretch">
+                  <input
+                    type={show ? "text" : "password"}
+                    className="input-warm flex-1"
+                    value={pw}
+                    onChange={(e) => { setPw(e.target.value); setErr(""); }}
+                    placeholder="At least 6 characters"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow((s) => !s)}
+                    className="iconbtn"
+                    style={{ width: 38, marginLeft: 4 }}
+                    title={show ? "Hide" : "Show"}
+                  >
+                    {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block mb-1.5">Confirm</label>
+                <input
+                  type={show ? "text" : "password"}
+                  className="input-warm"
+                  value={confirm}
+                  onChange={(e) => { setConfirm(e.target.value); setErr(""); }}
+                  placeholder="Re-enter the password"
+                  autoComplete="new-password"
+                />
+                {mismatch && (
+                  <p style={{ fontSize: 12, color: "var(--danger)", marginTop: 4 }}>Passwords don't match.</p>
+                )}
+              </div>
+              {err && (
+                <p className="text-sm text-[var(--danger)]">{err}</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-[var(--line)]">
+              <button className="btn btn--ghost" onClick={onClose} disabled={saving}>Cancel</button>
+              <button className="btn btn--accent" onClick={save} disabled={!valid || saving}>
+                {saving ? (<><Loader2 className="w-4 h-4 animate-spin" /> Resetting…</>) : (<><KeyRound className="w-4 h-4" /> Reset password</>)}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

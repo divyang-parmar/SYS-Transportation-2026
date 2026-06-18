@@ -1,11 +1,22 @@
 import { Router } from 'express';
 import { Types } from 'mongoose';
 import { z } from 'zod';
-import { Sarthi } from '../models/index.js';
+import { Sarthi, Vehicle } from '../models/index.js';
 import { HttpError } from '../middleware/error.js';
 import { ah } from '../util/asyncHandler.js';
 import { toOid } from '../util/oid.js';
 import { logger } from '../logger.js';
+import { requireAuth, requireRole, requireSelfOrAdmin } from '../middleware/auth.js';
+import { hashPassword } from '../services/auth_service.js';
+
+async function validatePassword(plain: unknown): Promise<string> {
+  const s = String(plain ?? '');
+  if (s.length < 6) throw new HttpError(422, 'password must be at least 6 characters');
+  if (s.length > 200) throw new HttpError(422, 'password too long');
+  return hashPassword(s);
+}
+
+const adminOnly = requireRole('super_admin', 'transportation_admin');
 
 function serialise(doc: Record<string, any>) {
   const out: Record<string, any> = {
@@ -14,6 +25,7 @@ function serialise(doc: Record<string, any>) {
     email: doc.email ?? '',
     phone: doc.phone ?? '',
     role: 'driver',
+    hasOwnVehicle: !!doc.has_own_vehicle,
   };
   if (doc.last_location && typeof doc.last_location.lat === 'number') {
     out.last_location = {
@@ -40,6 +52,7 @@ export const sarthiRouter = Router();
 
 sarthiRouter.get(
   '/',
+  requireAuth,
   ah(async (_req, res) => {
     const docs = await Sarthi.find({}).lean();
     res.json(docs.map(serialise));
@@ -59,6 +72,7 @@ sarthiRouter.get(
 
 sarthiRouter.get(
   '/locations',
+  requireAuth,
   ah(async (_req, res) => {
     const docs = await Sarthi.find({ 'last_location.lat': { $type: 'number' } }).lean();
     res.json(docs.map(serialise));
@@ -67,6 +81,7 @@ sarthiRouter.get(
 
 sarthiRouter.get(
   '/:sarthiId',
+  requireAuth,
   ah(async (req, res) => {
     const oid = toOid(req.params.sarthiId, 'sarthi id');
     const doc = await Sarthi.findOne({ _id: oid }).lean();
@@ -77,6 +92,7 @@ sarthiRouter.get(
 
 sarthiRouter.post(
   '/:sarthiId/location',
+  requireSelfOrAdmin('sarthiId'),
   ah(async (req, res) => {
     const oid = toOid(req.params.sarthiId, 'sarthi id');
     const parsed = LocationSchema.safeParse(req.body);
@@ -107,6 +123,7 @@ sarthiRouter.post(
 
 sarthiRouter.delete(
   '/:sarthiId/location',
+  requireSelfOrAdmin('sarthiId'),
   ah(async (req, res) => {
     const oid = toOid(req.params.sarthiId, 'sarthi id');
     const result = await Sarthi.updateOne({ _id: oid }, { $unset: { last_location: '' } });
@@ -117,6 +134,7 @@ sarthiRouter.delete(
 
 sarthiRouter.patch(
   '/:sarthiId',
+  adminOnly,
   ah(async (req, res) => {
     const oid = toOid(req.params.sarthiId, 'sarthi id');
     const body = req.body ?? {};
@@ -142,6 +160,11 @@ sarthiRouter.patch(
       update.phone = phone;
     }
 
+    if (body.password !== undefined && body.password !== '') {
+      update.password_hash = await validatePassword(body.password);
+      update.must_change_password = true;
+    }
+
     if (Object.keys(update).length === 1) {
       throw new HttpError(422, 'No fields to update');
     }
@@ -153,8 +176,105 @@ sarthiRouter.patch(
   })
 );
 
+const VEHICLE_TYPES = new Set(['SUV', 'Minivan', 'Van', 'Bus', 'Sedan', 'Truck']);
+
+function serialiseVehicle(doc: Record<string, any>) {
+  return {
+    id: String(doc._id),
+    make: doc.make ?? '',
+    name: doc.vehicle_name ?? '',
+    vehicleNumber: doc.number_plate ?? '',
+    type: doc.vehicle_type ?? 'SUV',
+    capacity: doc.capacity ?? 7,
+    assignedDriverId: doc.assigned_driver_id ?? null,
+    ownership: doc.ownership ?? 'sarthi_owned',
+    ownerName: doc.owner_name ?? '',
+    ownerPhone: doc.owner_phone ?? '',
+    ownerSarthiId: doc.owner_sarthi_id ?? null,
+  };
+}
+
+sarthiRouter.patch(
+  '/:sarthiId/profile',
+  requireSelfOrAdmin('sarthiId'),
+  ah(async (req, res) => {
+    const body = req.body ?? {};
+    const updates: Record<string, any> = {};
+    if ('hasOwnVehicle' in body) updates.has_own_vehicle = !!body.hasOwnVehicle;
+    if (Object.keys(updates).length === 0) throw new HttpError(422, 'no fields to update');
+    const doc = await Sarthi.findOneAndUpdate(
+      { _id: toOid(req.params.sarthiId, 'sarthi id') },
+      { $set: updates },
+      { new: true }
+    ).lean();
+    if (!doc) throw new HttpError(404, 'Sarthi not found');
+    res.json(serialise(doc));
+  })
+);
+
+sarthiRouter.get(
+  '/:sarthiId/vehicle',
+  requireSelfOrAdmin('sarthiId'),
+  ah(async (req, res) => {
+    const doc = await Vehicle.findOne({ assigned_driver_id: req.params.sarthiId }).lean();
+    if (!doc) throw new HttpError(404, 'No vehicle assigned');
+    res.json(serialiseVehicle(doc));
+  })
+);
+
+sarthiRouter.post(
+  '/:sarthiId/vehicle',
+  requireSelfOrAdmin('sarthiId'),
+  ah(async (req, res) => {
+    const body = req.body ?? {};
+    const type: string = body.type ?? 'SUV';
+    if (!VEHICLE_TYPES.has(type)) throw new HttpError(422, `type must be one of ${[...VEHICLE_TYPES].sort().join(', ')}`);
+    const now = new Date();
+    const created = await Vehicle.create({
+      make: String(body.make ?? '').trim(),
+      vehicle_name: String(body.name ?? '').trim(),
+      number_plate: String(body.vehicleNumber ?? '').trim(),
+      vehicle_type: type,
+      capacity: body.capacity ?? 7,
+      assigned_driver_id: req.params.sarthiId,
+      ownership: 'sarthi_owned',
+      owner_sarthi_id: req.params.sarthiId,
+      created_at: now,
+      updated_at: now,
+    });
+    await Sarthi.findByIdAndUpdate(req.params.sarthiId, { $set: { has_own_vehicle: true } });
+    logger.info(`Vehicle registered by sarthi ${req.params.sarthiId}: ${created._id}`);
+    res.status(201).json(serialiseVehicle(created.toObject()));
+  })
+);
+
+sarthiRouter.put(
+  '/:sarthiId/vehicle/:vehicleId',
+  requireSelfOrAdmin('sarthiId'),
+  ah(async (req, res) => {
+    const body = req.body ?? {};
+    const updates: Record<string, any> = { updated_at: new Date() };
+    if (body.make !== undefined) updates.make = String(body.make).trim();
+    if (body.name !== undefined) updates.vehicle_name = String(body.name).trim();
+    if (body.vehicleNumber !== undefined) updates.number_plate = String(body.vehicleNumber).trim();
+    if (body.type !== undefined) {
+      if (!VEHICLE_TYPES.has(body.type)) throw new HttpError(422, `type must be one of ${[...VEHICLE_TYPES].sort().join(', ')}`);
+      updates.vehicle_type = body.type;
+    }
+    if (body.capacity !== undefined) updates.capacity = body.capacity;
+    const result = await Vehicle.findOneAndUpdate(
+      { _id: toOid(req.params.vehicleId, 'vehicle id'), assigned_driver_id: req.params.sarthiId },
+      { $set: updates },
+      { new: true }
+    ).lean();
+    if (!result) throw new HttpError(404, 'Vehicle not found or not assigned to you');
+    res.json(serialiseVehicle(result));
+  })
+);
+
 sarthiRouter.post(
   '/',
+  adminOnly,
   ah(async (req, res) => {
     const body = req.body ?? {};
     const email = String(body.email ?? '').trim().toLowerCase();
@@ -176,13 +296,18 @@ sarthiRouter.post(
         return;
       }
     }
-    const doc = {
+    const doc: Record<string, unknown> = {
       full_name: String(body.name).trim(),
       email,
       phone,
       role: 'sarthi',
+      must_upload_photo: !!body.must_upload_photo,
       created_at: new Date(),
     };
+    if (body.password) {
+      doc.password_hash = await validatePassword(body.password);
+      doc.must_change_password = true;
+    }
     const created = await Sarthi.create(doc);
     logger.info(`Sarthi created: ${created._id} (${email})`);
     res.status(201).json(serialise(created.toObject()));
@@ -191,6 +316,7 @@ sarthiRouter.post(
 
 sarthiRouter.delete(
   '/:sarthiId',
+  adminOnly,
   ah(async (req, res) => {
     const { sarthiId } = req.params;
     let query: any;

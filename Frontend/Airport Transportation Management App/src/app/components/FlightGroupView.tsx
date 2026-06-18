@@ -39,8 +39,10 @@ interface Props {
   sarthis: Sarthi[];
   vehicles?: Vehicle[];
   assignments: Record<string, string>;
+  vehicleAssignments?: Record<string, string | null>;
   onAssign: (passengerId: string, sarthiId: string) => void;
   onUnassign: (passengerId: string) => void;
+  onAssignVehicle?: (passengerId: string, vehicleId: string | null) => void;
 }
 
 const statusConfig: Record<FlightStatus, { label: string; badge: string; icon: ReactNode }> = {
@@ -66,7 +68,7 @@ function formatTimeDiff(scheduled: string, actual: string): string | null {
   return diff > 0 ? `+${label}` : `-${label}`;
 }
 
-export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignments, onAssign, onUnassign }: Props) {
+export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignments, vehicleAssignments, onAssign, onUnassign, onAssignVehicle }: Props) {
   const [expanded, setExpanded] = useState(true);
 
   const totalPassengers = passengers.reduce((sum, p) => sum + p.passengerCount, 0);
@@ -216,8 +218,10 @@ export function FlightGroupCard({ group, passengers, sarthis, vehicles, assignme
                 sarthis={sarthis}
                 vehicles={vehicles}
                 assignedSarthiId={assignments[p.id]}
+                assignedVehicleId={vehicleAssignments?.[p.id] ?? null}
                 onAssign={(sarthiId) => onAssign(p.id, sarthiId)}
                 onUnassign={() => onUnassign(p.id)}
+                onAssignVehicle={onAssignVehicle ? (vid) => onAssignVehicle(p.id, vid) : undefined}
               />
             ))
           )}
@@ -232,17 +236,24 @@ function PassengerRow({
   sarthis,
   vehicles,
   assignedSarthiId,
+  assignedVehicleId,
   onAssign,
   onUnassign,
+  onAssignVehicle,
 }: {
   passenger: Passenger;
   sarthis: Sarthi[];
   vehicles?: Vehicle[];
   assignedSarthiId?: string;
+  assignedVehicleId?: string | null;
   onAssign: (sarthiId: string) => void;
   onUnassign: () => void;
+  onAssignVehicle?: (vehicleId: string | null) => void;
 }) {
   const assignedSarthi = sarthis.find((s) => s.id === assignedSarthiId);
+  const sarthiOwnedVehicle = vehicles?.find((v) => v.assignedDriverId === assignedSarthiId);
+  const effectiveVehicleId = assignedVehicleId ?? sarthiOwnedVehicle?.id ?? "";
+  const assignedVehicle = vehicles?.find((v) => v.id === effectiveVehicleId);
 
   return (
     <div
@@ -282,9 +293,9 @@ function PassengerRow({
               </span>
             )}
           </div>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
             {assignedSarthi ? (
-              <div className="flex items-center gap-2">
+              <>
                 <span className="badge-pill badge--ok">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {assignedSarthi.name}
@@ -292,13 +303,29 @@ function PassengerRow({
                     <span style={{ opacity: 0.75 }}> · {assignedSarthi.phone}</span>
                   )}
                 </span>
+                {onAssignVehicle && vehicles && vehicles.length > 0 && (
+                  <select
+                    value={effectiveVehicleId}
+                    onChange={(e) => onAssignVehicle(e.target.value || null)}
+                    className="input-warm"
+                    style={{ fontSize: 12, padding: "5px 8px", width: "auto" }}
+                    title={assignedVehicle ? `Driving ${assignedVehicle.make} ${assignedVehicle.name}` : "Pick a vehicle for this trip"}
+                  >
+                    <option value="">No vehicle</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.make} {v.name} · {v.vehicleNumber} ({v.capacity})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <button
                   onClick={onUnassign}
                   className="text-muted-foreground hover:text-[var(--danger)] transition-colors text-[12px]"
                 >
                   Remove
                 </button>
-              </div>
+              </>
             ) : (
               <select
                 defaultValue=""

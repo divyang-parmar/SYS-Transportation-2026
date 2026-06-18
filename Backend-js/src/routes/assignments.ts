@@ -6,15 +6,21 @@ import { HttpError } from '../middleware/error.js';
 import { toOid } from '../util/oid.js';
 import {
   DEFAULT_SARTHI_ASSIGNED_BODY,
+  DEFAULT_PICKUP_COMPLETE_BODY,
   renderTemplate,
   notify,
 } from '../services/sms_service.js';
 import {
   DEFAULT_SARTHI_ASSIGNED_EMAIL_BODY,
   DEFAULT_SARTHI_ASSIGNED_EMAIL_SUBJECT,
+  DEFAULT_PICKUP_COMPLETE_EMAIL_BODY,
+  DEFAULT_PICKUP_COMPLETE_EMAIL_SUBJECT,
   sendAssignmentEmail,
 } from '../services/email_service.js';
 import { logger } from '../logger.js';
+import { requireRole } from '../middleware/auth.js';
+
+const adminOnly = requireRole('super_admin', 'transportation_admin');
 import { settings } from '../config.js';
 
 function dateStr(dt: unknown): string {
@@ -52,6 +58,7 @@ assignmentsRouter.get(
         sarthiId: String(d.sarthi_id),
         flightType: d.flight_type ?? '',
         flightGroupId: d.flight_group_id ?? '',
+        vehicleId: d.vehicle_id ? String(d.vehicle_id) : null,
       }))
     );
   })
@@ -80,6 +87,16 @@ assignmentsRouter.get(
     const flightDocs = await FlightDetails.find({ booking_id: { $in: oidList } }).lean();
     const flightMap = new Map<string, any>(flightDocs.map((fd: any) => [String(fd.booking_id), fd]));
 
+    const vehicleOidSet = new Set<string>();
+    for (const a of assignments as any[]) {
+      if (a.vehicle_id) vehicleOidSet.add(String(a.vehicle_id));
+    }
+    const sarthiOwnedVehicle = await Vehicle.findOne({ assigned_driver_id: sarthiOid }).lean<any>();
+    const tripVehicles = vehicleOidSet.size
+      ? await Vehicle.find({ _id: { $in: [...vehicleOidSet].map((id) => new Types.ObjectId(id)) } }).lean<any[]>()
+      : [];
+    const vehicleMap = new Map<string, any>(tripVehicles.map((v: any) => [String(v._id), v]));
+
     const result = assignments.map((a: any) => {
       const bid = String(a.booking_id);
       const booking = bookingMap.get(bid) ?? {};
@@ -89,6 +106,19 @@ assignmentsRouter.get(
       const dtVal = section[`${flightType}_datetime`];
       const contact = booking.contact ?? {};
       const name = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || 'Unknown';
+
+      const tripVehicle = a.vehicle_id ? vehicleMap.get(String(a.vehicle_id)) : sarthiOwnedVehicle;
+      const vehicle = tripVehicle
+        ? {
+            id: String(tripVehicle._id),
+            make: tripVehicle.make ?? '',
+            name: tripVehicle.vehicle_name ?? '',
+            vehicleNumber: tripVehicle.number_plate ?? '',
+            type: tripVehicle.vehicle_type ?? 'SUV',
+            capacity: tripVehicle.capacity ?? 7,
+            ownership: tripVehicle.ownership ?? 'rented',
+          }
+        : null;
 
       return {
         bookingId: bid,
@@ -104,6 +134,7 @@ assignmentsRouter.get(
         scheduledTime: timeStr(dtVal),
         date: dateStr(dtVal),
         tripStatus: String(a.trip_status ?? 'pending'),
+        vehicle,
       };
     });
 
@@ -118,13 +149,16 @@ async function sendAssignmentNotification(
   flightType: string
 ): Promise<void> {
   try {
-    const [booking, sarthiDoc, templateDoc, vehicleDoc, emailTemplateDoc] = await Promise.all([
+    const [booking, sarthiDoc, templateDoc, assignmentDoc, emailTemplateDoc] = await Promise.all([
       Booking.findOne({ _id: bookingOid }).lean<any>(),
       Sarthi.findOne({ _id: sarthiOid }).lean<any>(),
       Template.findOne({ _id: 'sms-sarthi-assigned' }).lean<any>(),
-      Vehicle.findOne({ assigned_driver_id: sarthiOid }).lean<any>(),
+      Assignment.findOne({ booking_id: bookingOid, flight_type: flightType }).lean<any>(),
       Template.findOne({ _id: 'email-sarthi-assigned' }).lean<any>(),
     ]);
+    const vehicleDoc = assignmentDoc?.vehicle_id
+      ? await Vehicle.findOne({ _id: assignmentDoc.vehicle_id }).lean<any>()
+      : await Vehicle.findOne({ assigned_driver_id: sarthiOid }).lean<any>();
 
     if (!booking) {
       logger.warn(`SMS skipped: booking ${bookingOid} not found`);
@@ -197,8 +231,48 @@ async function sendAssignmentNotification(
   }
 }
 
+async function sendPickupCompleteNotification(
+  bookingOid: Types.ObjectId,
+  sarthiOid: Types.ObjectId
+): Promise<void> {
+  try {
+    const [booking, sarthiDoc, smsTpl, emailTpl] = await Promise.all([
+      Booking.findOne({ _id: bookingOid }).lean<any>(),
+      Sarthi.findOne({ _id: sarthiOid }).lean<any>(),
+      Template.findOne({ _id: 'sms-pickup-complete' }).lean<any>(),
+      Template.findOne({ _id: 'email-pickup-complete' }).lean<any>(),
+    ]);
+    if (!booking) return;
+    const contact = booking.contact ?? {};
+    const passengerName = `${contact.first_name ?? ''} ${contact.last_name ?? ''}`.trim() || 'Passenger';
+    const passengerPhone: string = contact.phone ?? '';
+    const passengerEmail: string = contact.email ?? '';
+    if (!passengerPhone && !passengerEmail) return;
+
+    const variables = {
+      passenger_name: passengerName,
+      sarthi_name: sarthiDoc?.full_name ?? 'your Sarthi',
+    };
+
+    const smsBody = renderTemplate(smsTpl?.body || DEFAULT_PICKUP_COMPLETE_BODY, variables);
+    let waOk = false;
+    if (passengerPhone) {
+      const result = await notify(passengerPhone, smsBody);
+      waOk = result.whatsapp;
+    }
+    if (!waOk && passengerEmail) {
+      const subject = renderTemplate(emailTpl?.subject || DEFAULT_PICKUP_COMPLETE_EMAIL_SUBJECT, variables);
+      const body = renderTemplate(emailTpl?.body || DEFAULT_PICKUP_COMPLETE_EMAIL_BODY, variables);
+      await sendAssignmentEmail(passengerEmail, passengerName, subject, body);
+    }
+  } catch (exc) {
+    logger.error({ exc }, `Pickup-complete notification failed for booking ${bookingOid}`);
+  }
+}
+
 assignmentsRouter.put(
   '/:bookingId/:flightType',
+  adminOnly,
   ah(async (req, res) => {
     const { bookingId, flightType } = req.params;
     if (flightType !== 'arrival' && flightType !== 'departure') {
@@ -211,24 +285,31 @@ assignmentsRouter.put(
     const sarthiOid = toOid(body.sarthi_id, 'ObjectId');
 
     const now = new Date();
+    const $set: Record<string, unknown> = {
+      sarthi_id: sarthiOid,
+      flight_group_id: body.flight_group_id ?? '',
+      updated_at: now,
+    };
+    const $unset: Record<string, unknown> = {};
+    if ('vehicle_id' in body) {
+      if (body.vehicle_id) $set.vehicle_id = toOid(body.vehicle_id, 'vehicle_id');
+      else $unset.vehicle_id = '';
+    }
     await Assignment.updateOne(
       { booking_id: bookingOid, flight_type: flightType },
       {
-        $set: {
-          sarthi_id: sarthiOid,
-          flight_group_id: body.flight_group_id ?? '',
-          updated_at: now,
-        },
+        $set,
+        ...(Object.keys($unset).length ? { $unset } : {}),
         $setOnInsert: { assigned_at: now, trip_status: 'pending' },
       },
       { upsert: true }
     );
-    logger.info(`Assignment: booking=${bookingId} sarthi=${body.sarthi_id} type=${flightType}`);
+    logger.info(`Assignment: booking=${bookingId} sarthi=${body.sarthi_id} type=${flightType} vehicle=${body.vehicle_id ?? '(none)'}`);
 
     // Fire-and-forget: do not await; do not block response.
     void sendAssignmentNotification(bookingOid, sarthiOid, flightType);
 
-    res.json({ bookingId, sarthiId: body.sarthi_id, flightType });
+    res.json({ bookingId, sarthiId: body.sarthi_id, flightType, vehicleId: body.vehicle_id ?? null });
   })
 );
 
@@ -244,6 +325,19 @@ assignmentsRouter.patch(
       throw new HttpError(422, "trip_status must be 'pending' or 'complete'");
     }
     const bookingOid = toOid(bookingId, 'ObjectId');
+
+    // Drivers may only flip their own assignment; admins may flip any.
+    if (req.user!.role === 'driver') {
+      const own = await Assignment.findOne({
+        booking_id: bookingOid,
+        flight_type: flightType,
+        sarthi_id: new Types.ObjectId(req.user!.sub),
+      }).lean();
+      if (!own) throw new HttpError(403, 'You can only update your own assignments');
+    } else if (req.user!.role !== 'super_admin' && req.user!.role !== 'transportation_admin') {
+      throw new HttpError(403, 'Insufficient permission');
+    }
+
     const now = new Date();
     const update: Record<string, unknown> = { trip_status: status, updated_at: now };
     const unset: Record<string, unknown> = {};
@@ -256,12 +350,24 @@ assignmentsRouter.patch(
     );
     if (result.matchedCount === 0) throw new HttpError(404, 'Assignment not found');
     logger.info(`Assignment status: booking=${bookingId} type=${flightType} status=${status}`);
+
+    if (status === 'complete') {
+      const assignment = await Assignment.findOne({
+        booking_id: bookingOid,
+        flight_type: flightType,
+      }).lean<any>();
+      if (assignment?.sarthi_id) {
+        void sendPickupCompleteNotification(bookingOid, new Types.ObjectId(String(assignment.sarthi_id)));
+      }
+    }
+
     res.json({ ok: true, trip_status: status, completed_at: status === 'complete' ? now.toISOString() : null });
   })
 );
 
 assignmentsRouter.delete(
   '/:bookingId/:flightType',
+  adminOnly,
   ah(async (req, res) => {
     const { bookingId, flightType } = req.params;
     const bookingOid = toOid(bookingId, 'ObjectId');

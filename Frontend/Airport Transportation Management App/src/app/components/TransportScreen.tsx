@@ -28,7 +28,7 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import type { AvailableRole } from "../App";
 import { type Sarthi as SarthiOption } from "./FlightGroupView";
 
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiFetch } from "../lib/api";
 const VEHICLES_API      = `${API_BASE}/vehicles`;
 const SARTHI_API        = `${API_BASE}/sarthi`;
 const FLIGHT_GROUPS_API = `${API_BASE}/flight-groups`;
@@ -56,13 +56,17 @@ interface Props {
   currentRole?: Role;
   availableRoles?: AvailableRole[];
   onSwitchRole?: (role: Role) => void;
+  superView?: "admin" | "ops";
+  onSwitchSuperView?: (v: "admin" | "ops") => void;
 }
 
-export function TransportScreen({ onBack, adminName, currentRole, availableRoles, onSwitchRole }: Props) {
+export function TransportScreen({ onBack, adminName, currentRole, availableRoles, onSwitchRole, superView, onSwitchSuperView }: Props) {
   const { isDark, toggle } = useTheme();
   const [activeTab, setActiveTab] = useState<Tab>("bhaktos");
   const [arrivalAssignments, setArrivalAssignments] = useState<Record<string, string>>({});
   const [departureAssignments, setDepartureAssignments] = useState<Record<string, string>>({});
+  const [arrivalVehicleAssignments, setArrivalVehicleAssignments] = useState<Record<string, string | null>>({});
+  const [departureVehicleAssignments, setDepartureVehicleAssignments] = useState<Record<string, string | null>>({});
   const [shareToast, setShareToast] = useState<{ passenger: Passenger; sarthiName: string; kind: "assigned" | "unassigned" } | null>(null);
   const [arrivalGroups, setArrivalGroups]   = useState<FlightGroup[]>([]);
   const [arrivalPax, setArrivalPax]         = useState<Passenger[]>([]);
@@ -77,6 +81,7 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
   const currentPassengers = activeTab === "arrival" ? arrivalPax : departurePax;
   const currentGroups = activeTab === "arrival" ? arrivalGroups : departureGroups;
   const currentAssignments = activeTab === "arrival" ? arrivalAssignments : departureAssignments;
+  const currentVehicleAssignments = activeTab === "arrival" ? arrivalVehicleAssignments : departureVehicleAssignments;
 
   const totalPassengers = currentPassengers.reduce((s, p) => s + p.passengerCount, 0);
   const totalBookings = currentPassengers.length;
@@ -104,7 +109,7 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
 
   useEffect(() => {
     setVehiclesLoading(true);
-    fetch(`${VEHICLES_API}/`)
+    apiFetch(`${VEHICLES_API}/`)
       .then((r) => r.json())
       .then((data: Vehicle[]) => setVehicles(data))
       .catch(() => {})
@@ -113,7 +118,7 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
 
   useEffect(() => {
     setSarthisLoading(true);
-    fetch(`${SARTHI_API}/`)
+    apiFetch(`${SARTHI_API}/`)
       .then((r) => r.json())
       .then((data: Sarthi[]) => setSarthis(data))
       .catch(() => {})
@@ -123,8 +128,8 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
   useEffect(() => {
     setFlightGroupsLoading(true);
     Promise.allSettled([
-      fetch(`${FLIGHT_GROUPS_API}/arrivals`).then((r) => r.json()),
-      fetch(`${FLIGHT_GROUPS_API}/departures`).then((r) => r.json()),
+      apiFetch(`${FLIGHT_GROUPS_API}/arrivals`).then((r) => r.json()),
+      apiFetch(`${FLIGHT_GROUPS_API}/departures`).then((r) => r.json()),
     ]).then(([arrResult, depResult]) => {
       if (arrResult.status === "fulfilled") {
         setArrivalGroups(arrResult.value.groups ?? []);
@@ -138,23 +143,27 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
   }, []);
 
   useEffect(() => {
-    fetch(`${ASSIGNMENTS_API}/`)
+    apiFetch(`${ASSIGNMENTS_API}/`)
       .then((r) => r.json())
-      .then((docs: { bookingId: string; sarthiId: string; flightType: string }[]) => {
+      .then((docs: { bookingId: string; sarthiId: string; flightType: string; vehicleId: string | null }[]) => {
         const arr: Record<string, string> = {};
         const dep: Record<string, string> = {};
+        const arrV: Record<string, string | null> = {};
+        const depV: Record<string, string | null> = {};
         for (const d of docs) {
-          if (d.flightType === "arrival")   arr[d.bookingId] = d.sarthiId;
-          if (d.flightType === "departure") dep[d.bookingId] = d.sarthiId;
+          if (d.flightType === "arrival")   { arr[d.bookingId] = d.sarthiId; arrV[d.bookingId] = d.vehicleId ?? null; }
+          if (d.flightType === "departure") { dep[d.bookingId] = d.sarthiId; depV[d.bookingId] = d.vehicleId ?? null; }
         }
         setArrivalAssignments(arr);
         setDepartureAssignments(dep);
+        setArrivalVehicleAssignments(arrV);
+        setDepartureVehicleAssignments(depV);
       })
       .catch(() => {});
   }, []);
 
   const handleAssignDriver = async (vehicleId: string, driverId: string) => {
-    const res = await fetch(`${VEHICLES_API}/${vehicleId}`, {
+    const res = await apiFetch(`${VEHICLES_API}/${vehicleId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ assignedDriverId: driverId || null }),
@@ -182,10 +191,22 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
     }
     if (flightType === "arrival") setArrivalAssignments((prev) => ({ ...prev, [bookingId]: sarthiId }));
     else setDepartureAssignments((prev) => ({ ...prev, [bookingId]: sarthiId }));
-    fetch(`${ASSIGNMENTS_API}/${bookingId}/${flightType}`, {
+    apiFetch(`${ASSIGNMENTS_API}/${bookingId}/${flightType}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ sarthi_id: sarthiId, flight_group_id: flightGroupId }),
+    }).catch(() => {});
+  };
+
+  const handleAssignVehicle = (bookingId: string, vehicleId: string | null, flightType: "arrival" | "departure", flightGroupId: string) => {
+    const sarthiId = (flightType === "arrival" ? arrivalAssignments : departureAssignments)[bookingId];
+    if (!sarthiId) return;
+    if (flightType === "arrival") setArrivalVehicleAssignments((prev) => ({ ...prev, [bookingId]: vehicleId }));
+    else setDepartureVehicleAssignments((prev) => ({ ...prev, [bookingId]: vehicleId }));
+    apiFetch(`${ASSIGNMENTS_API}/${bookingId}/${flightType}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sarthi_id: sarthiId, flight_group_id: flightGroupId, vehicle_id: vehicleId }),
     }).catch(() => {});
   };
 
@@ -198,7 +219,7 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
     }
     if (flightType === "arrival") setArrivalAssignments((prev) => { const n = { ...prev }; delete n[bookingId]; return n; });
     else setDepartureAssignments((prev) => { const n = { ...prev }; delete n[bookingId]; return n; });
-    fetch(`${ASSIGNMENTS_API}/${bookingId}/${flightType}`, { method: "DELETE" }).catch(() => {});
+    apiFetch(`${ASSIGNMENTS_API}/${bookingId}/${flightType}`, { method: "DELETE" }).catch(() => {});
   };
 
   return (
@@ -215,6 +236,15 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
           </div>
           {currentRole && availableRoles && onSwitchRole && (
             <RoleSwitcher current={currentRole} available={availableRoles} onSwitch={onSwitchRole} />
+          )}
+          {currentRole === "super_admin" && onSwitchSuperView && (
+            <button
+              onClick={() => onSwitchSuperView(superView === "ops" ? "admin" : "ops")}
+              className="btn btn--ghost btn--sm"
+              title="Switch view"
+            >
+              {superView === "ops" ? "Admin View" : "Operations View"}
+            </button>
           )}
           <button onClick={toggle} className="iconbtn" title="Toggle theme">
             {isDark ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
@@ -351,11 +381,15 @@ export function TransportScreen({ onBack, adminName, currentRole, availableRoles
                               sarthis={sarthis}
                               vehicles={vehicles}
                               assignments={currentAssignments}
+                              vehicleAssignments={currentVehicleAssignments}
                               onAssign={(bookingId, sarthiId) =>
                                 handleAssignSarthi(bookingId, sarthiId, activeTab as "arrival" | "departure", group.id)
                               }
                               onUnassign={(bookingId) =>
                                 handleUnassignSarthi(bookingId, activeTab as "arrival" | "departure")
+                              }
+                              onAssignVehicle={(bookingId, vehicleId) =>
+                                handleAssignVehicle(bookingId, vehicleId, activeTab as "arrival" | "departure", group.id)
                               }
                             />
                           ))}

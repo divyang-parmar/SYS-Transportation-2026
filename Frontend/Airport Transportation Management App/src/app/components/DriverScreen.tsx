@@ -19,6 +19,9 @@ import {
   PlaneTakeoff,
   MapPinned,
   MapPinOff,
+  Truck,
+  PlusCircle,
+  Pencil,
 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
 import { useLocationSharing, shouldAutoPromptShare } from "../hooks/useLocationSharing";
@@ -26,9 +29,10 @@ import { RoleSwitcher } from "./RoleSwitcher";
 import type { Role } from "../data/mockData";
 import type { AvailableRole } from "../App";
 
-import { API_BASE } from "../lib/api";
+import { API_BASE, apiFetch } from "../lib/api";
 const ASSIGNMENTS_API = `${API_BASE}/assignments`;
 const SARTHI_API      = `${API_BASE}/sarthi`;
+const VEHICLES_API    = `${API_BASE}/vehicles`;
 
 interface Props {
   onBack: () => void;
@@ -53,6 +57,15 @@ interface Pickup {
   scheduledTime: string;
   date: string;
   tripStatus?: string;
+  vehicle?: {
+    id: string;
+    make: string;
+    name: string;
+    vehicleNumber: string;
+    type: string;
+    capacity: number;
+    ownership: "rented" | "volunteer_provided" | "sarthi_owned";
+  } | null;
 }
 
 interface SarthiInfo {
@@ -60,11 +73,21 @@ interface SarthiInfo {
   name: string;
   phone: string;
   email: string;
+  hasOwnVehicle?: boolean;
+}
+
+interface DriverVehicle {
+  id: string;
+  make: string;
+  name: string;
+  vehicleNumber: string;
+  type: string;
+  capacity: number;
 }
 
 function formatDateToday(): string {
   const d = new Date();
-  return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
 function splitTime(time: string): { hhmm: string; ampm: string } {
@@ -79,6 +102,10 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
   const { isDark, toggle } = useTheme();
   const [pickups, setPickups] = useState<Pickup[]>([]);
   const [sarthiInfo, setSarthiInfo] = useState<SarthiInfo | null>(null);
+  const [myVehicle, setMyVehicle] = useState<DriverVehicle | null>(null);
+  const [showVehicleSheet, setShowVehicleSheet] = useState(false);
+  const [vehicleForm, setVehicleForm] = useState({ make: "", name: "", vehicleNumber: "", type: "SUV", capacity: "7" });
+  const [vehicleSaving, setVehicleSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "done">("all");
@@ -97,9 +124,10 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
     if (!driverId) return;
     setLoading(true);
     Promise.allSettled([
-      fetch(`${SARTHI_API}/${driverId}`).then((r) => r.ok ? r.json() : null),
-      fetch(`${ASSIGNMENTS_API}/sarthi/${driverId}`).then((r) => r.json()),
-    ]).then(([sarthiRes, pickupsRes]) => {
+      apiFetch(`${SARTHI_API}/${driverId}`).then((r) => r.ok ? r.json() : null),
+      apiFetch(`${ASSIGNMENTS_API}/sarthi/${driverId}`).then((r) => r.json()),
+      apiFetch(`${SARTHI_API}/${driverId}/vehicle`).then((r) => r.ok ? r.json() : null),
+    ]).then(([sarthiRes, pickupsRes, vehicleRes]) => {
       if (sarthiRes.status === "fulfilled" && sarthiRes.value?.id) {
         setSarthiInfo(sarthiRes.value);
       }
@@ -107,6 +135,9 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
         const items = pickupsRes.value as Pickup[];
         setPickups(items);
         setCompletedIds(new Set(items.filter((p) => p.tripStatus === "complete").map((p) => p.bookingId)));
+      }
+      if (vehicleRes.status === "fulfilled" && vehicleRes.value?.id) {
+        setMyVehicle(vehicleRes.value);
       }
     }).finally(() => setLoading(false));
   }, [driverId]);
@@ -132,7 +163,7 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
     });
     setToast(wasCompleted ? "Marked pending" : "Pickup completed ✓");
 
-    fetch(`${ASSIGNMENTS_API}/${id}/${pickup.flightType}/status`, {
+    apiFetch(`${ASSIGNMENTS_API}/${id}/${pickup.flightType}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ trip_status: nextStatus }),
@@ -150,6 +181,50 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
         });
         setToast("Couldn't save — try again");
       });
+  };
+
+  const toggleHasOwnVehicle = async () => {
+    if (!driverId) return;
+    const res = await apiFetch(`${SARTHI_API}/${driverId}/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hasOwnVehicle: true }),
+    });
+    if (res.ok) {
+      const updated: SarthiInfo = await res.json();
+      setSarthiInfo(updated);
+      setToast("You can now register your vehicle ✓");
+    }
+  };
+
+  const openVehicleSheet = () => {
+    setVehicleForm(myVehicle
+      ? { make: myVehicle.make, name: myVehicle.name, vehicleNumber: myVehicle.vehicleNumber, type: myVehicle.type, capacity: String(myVehicle.capacity) }
+      : { make: "", name: "", vehicleNumber: "", type: "SUV", capacity: "7" }
+    );
+    setShowVehicleSheet(true);
+  };
+
+  const handleSaveVehicle = async () => {
+    if (!driverId || !vehicleForm.make || !vehicleForm.name || !vehicleForm.vehicleNumber) return;
+    setVehicleSaving(true);
+    try {
+      const payload = { make: vehicleForm.make, name: vehicleForm.name, vehicleNumber: vehicleForm.vehicleNumber, type: vehicleForm.type, capacity: parseInt(vehicleForm.capacity) || 7 };
+      let res: Response;
+      if (myVehicle) {
+        res = await apiFetch(`${SARTHI_API}/${driverId}/vehicle/${myVehicle.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      } else {
+        res = await apiFetch(`${SARTHI_API}/${driverId}/vehicle`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      }
+      if (res.ok) {
+        const saved: DriverVehicle = await res.json();
+        setMyVehicle(saved);
+        setShowVehicleSheet(false);
+        setToast(myVehicle ? "Vehicle updated" : "Vehicle registered ✓");
+      }
+    } finally {
+      setVehicleSaving(false);
+    }
   };
 
   const sortedPickups = useMemo(() => {
@@ -247,6 +322,54 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
             </div>
             <ProgressRing pct={pct} />
           </div>
+
+          {/* My Vehicle strip — only shown when sarthi opted in to driving their own car */}
+          {sarthiInfo?.hasOwnVehicle ? (
+            <button
+              onClick={openVehicleSheet}
+              className="mt-4 w-full flex items-center gap-3 transition-transform active:scale-[0.985]"
+              style={{
+                background: myVehicle ? "var(--surface-2)" : "transparent",
+                border: myVehicle ? "1px solid var(--line)" : "1px dashed var(--line)",
+                borderRadius: 12,
+                padding: "9px 14px",
+              }}
+            >
+              <div
+                className="flex-shrink-0 flex items-center justify-center"
+                style={{ width: 30, height: 30, borderRadius: 8, background: myVehicle ? "var(--primary-tint)" : "var(--surface-3)", color: myVehicle ? "var(--primary)" : "var(--muted-foreground)" }}
+              >
+                <Truck className="w-4 h-4" />
+              </div>
+              {myVehicle ? (
+                <div className="flex-1 text-left min-w-0">
+                  <div className="text-xs font-semibold text-[var(--head)] truncate">{myVehicle.make} {myVehicle.name}</div>
+                  <div className="text-[11px] text-muted-foreground">{myVehicle.vehicleNumber} · {myVehicle.type} · {myVehicle.capacity} seats</div>
+                </div>
+              ) : (
+                <span className="flex-1 text-left text-xs text-muted-foreground">Register my vehicle</span>
+              )}
+              {myVehicle ? <Pencil className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" /> : <PlusCircle className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />}
+            </button>
+          ) : (
+            <button
+              onClick={toggleHasOwnVehicle}
+              className="mt-4 w-full flex items-center gap-3 transition-transform active:scale-[0.985]"
+              style={{ background: "transparent", border: "1px dashed var(--line)", borderRadius: 12, padding: "9px 14px" }}
+            >
+              <div
+                className="flex-shrink-0 flex items-center justify-center"
+                style={{ width: 30, height: 30, borderRadius: 8, background: "var(--surface-3)", color: "var(--muted-foreground)" }}
+              >
+                <Truck className="w-4 h-4" />
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-xs font-semibold text-[var(--head)]">No personal vehicle</div>
+                <div className="text-[11px] text-muted-foreground">Tap if you'd like to drive your own car</div>
+              </div>
+              <PlusCircle className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+            </button>
+          )}
 
           {/* Next-up strip */}
           {nextPickup && (
@@ -513,6 +636,12 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
                           Stroller
                         </span>
                       )}
+                      {pickup.vehicle && (
+                        <span className="tag-chip" style={{ color: "var(--primary)" }}>
+                          <Truck className="w-3 h-3" />
+                          {pickup.vehicle.make} {pickup.vehicle.name} &middot; {pickup.vehicle.vehicleNumber}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -584,6 +713,16 @@ export function DriverScreen({ onBack, driverName, driverId, currentRole, availa
           onDecline={() => setShowSharePrompt(false)}
         />
       )}
+
+      <VehicleSheet
+        open={showVehicleSheet}
+        form={vehicleForm}
+        saving={vehicleSaving}
+        isEdit={!!myVehicle}
+        onChange={(patch) => setVehicleForm((f) => ({ ...f, ...patch }))}
+        onSave={handleSaveVehicle}
+        onClose={() => setShowVehicleSheet(false)}
+      />
 
       {/* Toast */}
       {toast && (
@@ -882,6 +1021,83 @@ function ShareLocationButton({ state, onStart, onStop }: {
         {label}
       </span>
     </button>
+  );
+}
+
+function VehicleSheet({
+  open, form, saving, isEdit, onChange, onSave, onClose,
+}: {
+  open: boolean;
+  form: { make: string; name: string; vehicleNumber: string; type: string; capacity: string };
+  saving: boolean;
+  isEdit: boolean;
+  onChange: (patch: Partial<typeof form>) => void;
+  onSave: () => void;
+  onClose: () => void;
+}) {
+  const canSave = form.make.trim() && form.name.trim() && form.vehicleNumber.trim() && !saving;
+  return (
+    <>
+      <div
+        onClick={onClose}
+        className="fixed inset-0 z-40 transition-opacity"
+        style={{ background: "rgba(20,12,6,0.42)", opacity: open ? 1 : 0, pointerEvents: open ? "auto" : "none", transitionDuration: "280ms" }}
+      />
+      <div
+        className="fixed left-0 right-0 bottom-0 z-50 mx-auto"
+        style={{
+          maxWidth: 720,
+          background: "var(--surface)",
+          borderRadius: "26px 26px 0 0",
+          transform: open ? "translateY(0)" : "translateY(102%)",
+          transition: "transform 320ms cubic-bezier(.32,.72,.3,1)",
+          padding: "10px 20px 32px",
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.2)",
+        }}
+      >
+        <div className="mx-auto" style={{ width: 40, height: 5, borderRadius: 99, background: "var(--line)", margin: "4px auto 18px" }} />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[1.1em] font-bold text-[var(--head)]">{isEdit ? "Edit My Vehicle" : "Register My Vehicle"}</h2>
+          <button onClick={onClose} className="iconbtn" style={{ width: 32, height: 32 }}><X className="w-4 h-4" /></button>
+        </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Make</label>
+              <input className="input-warm" placeholder="Toyota" value={form.make} onChange={(e) => onChange({ make: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Model</label>
+              <input className="input-warm" placeholder="Sienna" value={form.name} onChange={(e) => onChange({ name: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">License Plate</label>
+              <input className="input-warm" placeholder="ABC 1234" value={form.vehicleNumber} onChange={(e) => onChange({ vehicleNumber: e.target.value })} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">Type</label>
+              <select className="input-warm" value={form.type} onChange={(e) => onChange({ type: e.target.value })}>
+                {["SUV", "Minivan", "Van", "Bus", "Sedan", "Truck"].map((t) => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5">Seating Capacity</label>
+            <select className="input-warm" value={form.capacity} onChange={(e) => onChange({ capacity: e.target.value })}>
+              {[4, 5, 6, 7, 8, 10, 12, 14, 20, 30].map((n) => <option key={n} value={n}>{n} seats</option>)}
+            </select>
+          </div>
+          <button
+            onClick={onSave}
+            disabled={!canSave}
+            className="w-full btn btn--accent mt-1"
+            style={{ padding: "13px", fontSize: "0.95em" }}
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isEdit ? "Save Changes" : "Register Vehicle"}
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
