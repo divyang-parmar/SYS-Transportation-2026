@@ -103,9 +103,7 @@ def _build_passengers(fields: dict) -> list[dict]:
         if phone:
             passenger["phone"] = phone
         if mandal_key:
-            mandal = _str(fields.get(mandal_key, ""))
-            if mandal:
-                passenger["mandal"] = mandal
+            passenger["mandal"] = _str(fields.get(mandal_key, ""))
         passengers.append(passenger)
     return passengers
 
@@ -135,7 +133,7 @@ def _build_booking_doc(fields: dict, created_at: datetime) -> dict:
 
     passengers = _build_passengers(fields)
     if not passengers:
-        passengers = [{"first_name": first_name, "last_name": last_name}]
+        passengers = [{"first_name": first_name, "last_name": last_name, "mandal": _str(fields.get(F_MANDAL, ""))}]
 
     doc: dict = {
         "contact": {

@@ -4,7 +4,7 @@ Loads environment variables from .env file and validates them.
 """
 
 from pydantic_settings import BaseSettings
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 from typing import Literal
 
 
@@ -75,21 +75,24 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         case_sensitive = False
 
-    @validator("mongodb_uri")
+    @field_validator("mongodb_uri", mode="before")
+    @classmethod
     def validate_mongodb_uri(cls, v):
         """Validate MongoDB URI format."""
         if not v.startswith("mongodb"):
             raise ValueError("Invalid MongoDB URI: must start with 'mongodb' or 'mongodb+srv'")
         return v
 
-    @validator("api_port")
+    @field_validator("api_port", mode="after")
+    @classmethod
     def validate_api_port(cls, v):
         """Validate API port is in valid range."""
         if not (1 <= v <= 65535):
             raise ValueError("API port must be between 1 and 65535")
         return v
 
-    @validator("webhook_timeout_seconds", "max_requests_per_minute", "request_size_limit_mb")
+    @field_validator("webhook_timeout_seconds", "max_requests_per_minute", "request_size_limit_mb", mode="after")
+    @classmethod
     def validate_positive_integers(cls, v):
         """Validate positive integer values."""
         if v <= 0:
