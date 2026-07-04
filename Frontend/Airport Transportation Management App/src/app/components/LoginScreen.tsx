@@ -154,7 +154,7 @@ export function LoginScreen({ onLogin }: Props) {
         <p style={{ fontSize: "11px", color: "#BBBBBB", lineHeight: 1.6 }}>
           By signing in, you agree to our{" "}
           <a
-            href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
+            href="/terms-and-conditions.html"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: "#0C71C3", textDecoration: "underline" }}
@@ -163,7 +163,7 @@ export function LoginScreen({ onLogin }: Props) {
           </a>
           {" "}and{" "}
           <a
-            href="https://docs.google.com/document/d/1FvaXQblgTKI6oMFf9ciQ-mbHMAAHGALbzd4kueXtZ5A/edit?tab=t.0"
+            href="/privacy-policy.html"
             target="_blank"
             rel="noopener noreferrer"
             style={{ color: "#0C71C3", textDecoration: "underline" }}
